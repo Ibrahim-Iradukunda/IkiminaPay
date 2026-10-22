@@ -25,6 +25,8 @@ secrets/
 
 # Dependencies
 node_modules/
+data/groups.json
+data/groups.json.tmp
 vendor/
 
 # Node.js build output and logs

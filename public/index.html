@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#143c32">
+  <title>IkiminaPay — group savings</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="IkiminaPay home"><span class="brand-mark">I</span> IkiminaPay</a>
+    <span class="local-label"><i></i> Group savings</span>
+  </header>
+  <main class="layout">
+    <section class="intro">
+      <p class="eyebrow">SAVE TOGETHER</p>
+      <h1>Small steps.<br><em>Shared progress.</em></h1>
+      <p class="intro-copy">Keep your savings group in sync. Add members, record contributions and see your progress grow.</p>
+      <div class="intro-note"><span>◎</span><div><strong>Made for your ikimina</strong><small>Simple, clear group tracking</small></div></div>
+    </section>
+
+    <section class="workspace" aria-label="Savings group workspace">
+      <div id="welcome" class="card welcome-card">
+        <div class="card-heading"><div><p class="eyebrow">GET STARTED</p><h2>Create your group</h2></div><span class="step-badge">01</span></div>
+        <p class="muted">Give your savings circle a name to begin tracking together.</p>
+        <form id="create-group-form" class="form-row">
+          <label class="sr-only" for="group-name">Group name</label>
+          <input id="group-name" name="name" placeholder="e.g. Umucyo Savings Circle" required maxlength="80">
+          <button class="button primary" type="submit">Create group <span>→</span></button>
+        </form>
+        <p class="hint">Your active group is saved on this device.</p>
+      </div>
+
+      <div id="dashboard" hidden>
+        <div class="group-header card">
+          <div><p class="eyebrow">YOUR SAVINGS GROUP</p><div class="title-line"><h2 id="group-title"></h2><button id="new-group" class="text-button" type="button">New group</button></div></div>
+          <div class="balance-block"><small>GROUP BALANCE</small><strong id="group-balance">0 RWF</strong></div>
+        </div>
+        <div class="dashboard-grid">
+          <div class="left-column">
+            <section class="card">
+              <div class="section-heading"><div><p class="eyebrow">THE CIRCLE</p><h3>Members <span id="member-count" class="count">0</span></h3></div></div>
+              <form id="member-form" class="form-row compact">
+                <label class="sr-only" for="member-name">Member name</label><input id="member-name" name="name" placeholder="Add a member's name" required maxlength="80">
+                <button class="button secondary" type="submit">Add member <span>+</span></button>
+              </form>
+              <div id="members-list" class="members-list"></div>
+            </section>
+            <section class="card payment-card">
+              <div class="section-heading"><div><p class="eyebrow">RECORD A CONTRIBUTION</p><h3>Log a payment</h3></div><span class="payment-icon">↗</span></div>
+              <form id="payment-form">
+                <label for="payment-member">Member</label><select id="payment-member" required><option value="">Choose a member</option></select>
+                <div class="payment-fields"><div><label for="payment-amount">Amount (RWF)</label><input id="payment-amount" type="number" min="1" step="1" placeholder="e.g. 5000" required></div><div><label for="payment-date">Date</label><input id="payment-date" type="date" required></div></div>
+                <button class="button primary full" type="submit">Simulate mobile money payment <span>→</span></button>
+                <p class="hint">Demo only. The result is simulated; no real payment is made.</p>
+              </form>
+            </section>
+          </div>
+          <aside class="card activity-card">
+            <div class="section-heading"><div><p class="eyebrow">AT A GLANCE</p><h3>Group summary</h3></div></div>
+            <div id="summary-list" class="summary-list"></div>
+            <div class="summary-footer"><span>Total recorded</span><strong id="summary-total">0 RWF</strong></div>
+          </aside>
+        </div>
+      </div>
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+    </section>
+  </main>
+  <footer>IkiminaPay <span>·</span> A clearer way to save together</footer>
+  <script src="/app.js" defer></script>
+</body>
+</html>
