@@ -2,168 +2,134 @@
 
 > Digital savings groups (ikimina) made simple, transparent, and mobile-money ready.
 
-## Table of Contents
+## African Context
 
-- [Problem Statement](#problem-statement)
-- [Target Users](#target-users)
-- [Core Features](#core-features)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-- [Environment Variables](#environment-variables)
-- [Running Tests](#running-tests)
-- [Branch Protection](#branch-protection)
-- [Contributing](#contributing)
-- [Team](#team)
-- [Links](#links)
-- [License](#license)
+In Rwanda and across Africa, millions of people save through community savings groups, known in Rwanda as **ikimina**. Members contribute a fixed amount regularly, and the pooled money supports members when they need it.
 
-## Problem Statement
+Most groups still track contributions in paper notebooks or WhatsApp messages. Records get lost or miscalculated, members cannot easily check who has paid, which leads to disputes, and the treasurer does all the totals by hand. Most members already pay with mobile money (MoMo), but their savings records are not connected to it.
 
-In Rwanda and across Africa, millions of people save money through community savings groups, known in Rwanda as **ikimina**. Members contribute a fixed amount regularly, and the pooled money is used to support members when they need it.
+IkiminaPay gives savings groups one shared digital record of members, contributions and balances, so everyone can see where the group stands.
 
-Most groups still track contributions in **paper notebooks or WhatsApp messages**. This leads to:
+## Team Members
 
-- **Lost or incorrect records** when notebooks are damaged or totals are miscalculated
-- **Disputes and mistrust** because members cannot easily check who has paid
-- **Heavy manual work for the treasurer**, who records and totals everything by hand
-- **No connection to mobile money**, even though most members already pay with MoMo
+- Frida Kayiranga - Team Lead, core backend feature, project board - [f.kayiranga@alustudent.com]
+- Karabo Divine - README, setup steps, user stories - [k.divine@alustudent.com]
+- Noel Ishimwe - Frontend, extra feature - [n.ishimwe4@alustudent.com]
+- IRADUKUNDA Ibrahim - .gitignore, branch protection, unit tests - [i.ibrahim@alustudent.com]
 
-**IkiminaPay** gives savings groups a simple digital record of members, contributions and balances, so that every member can see where the group stands, and payments can be made through mobile money.
+## Project Overview
+
+IkiminaPay is a small web application for managing savings groups. A treasurer creates a group, adds members and records each contribution. Members can then see their own total and the group's balance.
+
+The first version is intentionally small. It runs on an Express REST API with in-memory storage, and includes a simulated MoMo payment that returns success or failure. The backend and frontend are kept separate, so later versions can add a real database, a real mobile money integration and other features as their own services.
+
+Payments in this version are simulated. No real money is moved.
 
 ## Target Users
 
-- **Treasurers** who create and manage savings groups and keep track of contributions
-- **Group members** who want to pay their contributions and check their own savings and the group balance
-- **Community savings groups in Rwanda and other African countries**, including members with little technical experience
+- Treasurers who create and manage savings groups.
+- Group members who pay contributions and check their savings and the group balance.
+- Community savings groups in Rwanda and across Africa, including members with little technical experience.
 
 ## Core Features
 
-1. **Create a savings group**: a treasurer creates a group to track its contributions
-2. **Add members**: the treasurer adds members so everyone knows who takes part
-3. **Record contributions**: each member's payment is saved to the group's records
-4. **View balances**: members see their own total and the full group balance
-5. **Mobile money payment simulation**: simulates a MoMo payment and returns success or failure
+- **Create a group:** a treasurer creates a savings group.
+- **Add members:** the treasurer adds members to the group.
+- **Record contributions:** each member's payment is saved to the group's records.
+- **View balances:** members see their own total and the group balance.
+- **MoMo payment simulation:** simulates a mobile money payment and returns success or failure.
+- **Planned:** a real database and a real mobile money integration.
 
-## Tech Stack
+## Technology Stack
 
-| Layer    | Technology |
-|----------|------------|
-| Backend  | Node.js + Express |
+| Area | Details |
+|------|---------|
+| Backend | Node.js 18+, Express |
 | Frontend | HTML, CSS, JavaScript |
-| Storage  | In-memory storage (a database will be added in a later phase) |
-| Testing  | Jest |
-| Config   | dotenv (environment variables) |
-| Tools    | Git, GitHub, GitHub Projects |
-
-## Project Structure
-
-    IkiminaPay/
-    ├── backend/          # REST API: groups, members, contributions, payments
-    │   ├── server.js     # Entry point: starts the Express server
-    │   └── package.json  # Dependencies and npm scripts
-    ├── frontend/         # Simple web page for users
-    ├── .gitignore        # Files Git must never track (node_modules, .env, logs...)
-    ├── LICENSE
-    └── README.md
-
-The backend and frontend are kept separate, so each can be containerized and deployed as its own service. Inside the backend, the logic is split by responsibility (groups, contributions, payments), which allows the project to grow into separate microservices as it scales.
+| Database | In-memory storage for now (data resets on restart); a real database is planned |
+| Testing | Jest |
+| Other | dotenv, Git and GitHub (Projects, branch protection, pull requests) |
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Git](https://git-scm.com/)
-- [Node.js](https://nodejs.org/) v18 or later (includes npm)
+- Node.js 18 or newer (includes npm)
+- Git
 
-### 1. Clone the repository
+### Installation
 
-    git clone https://github.com/Ibrahim-Iradukunda/IkiminaPay.git
-    cd IkiminaPay
+Clone the repository:
 
-### 2. Install backend dependencies
+```bash
+git clone https://github.com/Ibrahim-Iradukunda/IkiminaPay.git
+cd IkiminaPay/backend
+```
 
-    cd backend
-    npm install
+Install dependencies:
 
-### 3. Set up environment variables
+```bash
+npm install
+```
 
-Create a file named `.env` inside the `backend` folder and add:
+Create a `.env` file in the `backend` folder:
 
-    PORT=3000
+```
+PORT=3000
+```
 
-See [Environment Variables](#environment-variables) for details.
+### Run the Application
 
-### 4. Start the backend
+```bash
+npm start
+```
 
-    npm start
-
-For development, use auto-restart whenever a file changes:
-
-    npm run dev
-
-The API is now running at **http://localhost:3000**.
-
-To stop the server, press `Ctrl + C` in the terminal.
-
-### 5. Run the frontend
+For development with auto-restart, use `npm run dev`. The API runs at http://localhost:3000.
 
 Frontend setup steps will be added once the frontend is merged.
 
-## Environment Variables
+## Usage
 
-The backend reads its settings from a `.env` file in the `backend` folder.
+With the backend running, call the API with curl or a tool like Postman:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT`   | Port the API server listens on | `3000` |
+```bash
+curl http://localhost:3000/groups
+```
 
-> **Security:** never commit your `.env` file. It is listed in `.gitignore` so that secrets stay out of the repository.
+## Running the Tests
 
-## Running Tests
+```bash
+cd backend
+npm test
+```
 
-Unit tests are written with Jest:
+## Project Structure
 
-    cd backend
-    npm test
+```
+.
+├── backend/              # Express REST API
+│   ├── server.js         # Entry point
+│   └── package.json      # Dependencies and scripts
+├── frontend/             # Web page for users
+├── .gitignore
+├── LICENSE
+└── README.md
+```
 
-## Branch Protection
+## Collaboration and Repository Security
 
-The `main` branch is protected so that no one can push to it directly. These rules keep `main` stable and make sure every change is reviewed:
+**Branch protection on `main`:** a pull request is required, with at least 1 approval from someone other than the author. Stale approvals are dismissed when new commits are pushed, branches must be up to date before merging, conversations must be resolved, and the rules apply to administrators too.
 
-| Rule | Why it matters |
-|------|----------------|
-| Require a pull request before merging | All changes are visible and discussed before they reach `main` |
-| Require 1 approval | A teammate must review every change |
-| Dismiss stale approvals on new commits | Code changed after approval must be reviewed again |
-| Require status checks to pass | Broken or failing code cannot be merged |
-| Require branches to be up to date | Changes are tested against the latest `main` |
-| Require conversation resolution | Review comments must be addressed before merging |
-| Include administrators | The rules apply to everyone, including repository admins |
+**Required status checks:** not enabled yet, because there is no CI pipeline. They will be added once GitHub Actions runs the tests.
 
-## Contributing
+**Secrets:** `.gitignore` excludes `.env` files and `node_modules`, so credentials are never committed.
 
-1. Pull the latest `main`: `git pull origin main`
-2. Create a branch: `git checkout -b feature/your-feature`
-3. Commit your changes with a clear message, e.g. `feat: add member endpoint`
-4. Push your branch: `git push -u origin feature/your-feature`
-5. Open a pull request and ask a teammate to review it
-
-Track all work on the [project board](https://github.com/users/code2811/projects/1).
-
-## Team
-
-| Name | GitHub | Role |
-|------|--------|------|
-| Frida Kayiranga | [@code2811](https://github.com/code2811) | Team lead, core backend feature, project board |
-| Karabo Divine | [@Karab-o](https://github.com/Karab-o) | README, setup steps, user stories |
-| Noel Ishimwe | [@Igornoel](https://github.com/Igornoel) | Frontend, extra feature |
-| IRADUKUNDA Ibrahim | [@Ibrahim-Iradukunda](https://github.com/Ibrahim-Iradukunda) | .gitignore, branch protection, unit tests |
+**Workflow:** every change is made on its own branch, opened as a pull request, and reviewed by a teammate before merging.
 
 ## Links
 
-- Project Board: https://github.com/users/code2811/projects/1
+- [Project Board](https://github.com/users/Karab-o/projects/2/views/1)
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](LICENSE).
