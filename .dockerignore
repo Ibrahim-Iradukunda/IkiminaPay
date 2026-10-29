@@ -1,0 +1,12 @@
+# Keep local machine files and credentials out of the Docker build context.
+.git
+.env
+.env.*
+!.env.example
+
+# Use clean container dependencies and omit generated local state.
+node_modules
+data/groups.json
+data/groups.json.tmp
+coverage
+npm-debug.log*
