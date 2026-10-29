@@ -1,0 +1,54 @@
+# IkiminaPay stores data in a JSON file, so it needs only one service.
+# A database service can be added later on the same network.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ikiminapay-app
+    container_name: ikiminapay-app
+
+    # Values from .env (copy .env.example to .env first).
+    # .env is excluded by .dockerignore, so Compose passes the values in here.
+    env_file:
+      - .env
+    environment:
+      # Keep data out of /app/data, which also holds store.js.
+      # Requires store.js to read process.env.DATA_FILE.
+      DATA_FILE: /app/storage/groups.json
+
+    # Host port : container port. Both follow PORT so they always match.
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+
+    # Named volume so groups survive `docker compose down`.
+    # The Dockerfile must create /app/storage owned by node.
+    volumes:
+      - ikiminapay-data:/app/storage
+
+    networks:
+      - ikiminapay-net
+
+    # Restart after crashes, but not after `docker compose stop`/`down`.
+    restart: unless-stopped
+
+    # The image has no curl/wget, so use Node 22's built-in fetch.
+    # GET / serves public/index.html. Exits 1 if the request fails or the status is not 2xx.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:' + (process.env.PORT || 3000) + '/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  ikiminapay-data:
+
+networks:
+  ikiminapay-net:
+    driver: bridge

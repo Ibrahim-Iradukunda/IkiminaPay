@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-function createJsonStore(filePath = path.join(__dirname, 'groups.json')) {
+// DATA_FILE lets Docker keep data in a volume outside the code folder.
+function createJsonStore(filePath = process.env.DATA_FILE || path.join(__dirname, 'groups.json')) {
   return {
     read() {
       try {

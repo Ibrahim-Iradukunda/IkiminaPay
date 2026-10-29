@@ -20,6 +20,9 @@ COPY --chown=node:node . .
 # Document the HTTP port used by the Express server.
 EXPOSE 3000
 
+# Create the data folder for the Compose volume, owned by the runtime account.
+RUN mkdir -p /app/storage && chown node:node /app/storage
+
 # Run the application as the non-root user provided by the Node image.
 USER node
 
