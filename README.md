@@ -23,6 +23,23 @@ IkiminaPay is a simple savings group tracker. A treasurer creates a group, adds 
 
 The first version is intentionally small. One Express app serves both the web page and the REST API, and group data is saved to a local JSON file. The mobile money action is a local simulation: a successful attempt is saved as a contribution, and a failed attempt does not change the balance. Later versions can add a real database, authentication and a real mobile money integration.
 
+The browser keeps the active group ID in local storage so the group can be reopened on that device. There is no authentication or real payment processing in this demo.
+
+## Run with Docker
+
+Build the image from the repository root:
+
+```sh
+docker build -t ikiminapay .
+```
+
+Start the app on port 3000 and keep group data in a named Docker volume:
+
+```sh
+docker run --rm -p 3000:3000 -v ikiminapay-data:/app/data ikiminapay
+```
+
+Open [http://localhost:3000](http://localhost:3000). The container runs as the non-root `node` user. The named volume preserves the local JSON data between container runs.
 This is a demo: there is no login, and no real money is moved.
 
 ## Target Users
