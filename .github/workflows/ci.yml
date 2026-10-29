@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      # Get the repository code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Install Node.js 20 and cache npm packages
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Install exact dependency versions from package-lock.json
+      - name: Install dependencies
+        run: npm ci
+
+      # Run ESLint (fails the pipeline on errors)
+      - name: Run lint
+        run: npm run lint
+
+      # Run Jest tests (fails the pipeline on failures)
+      - name: Run tests
+        run: npm test
+
+      # Build the Docker image (fails if the Dockerfile is broken)
+      - name: Build Docker image
+        run: docker build -t ikiminapay:ci .
