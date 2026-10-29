@@ -1,0 +1,22 @@
+{
+  "groups": [
+    {
+      "id": "cf16db45-76a7-4431-8f4e-7a0b358b86d2",
+      "name": "Umuganda Savers",
+      "members": [
+        {
+          "id": "676db4b1-813b-4458-93cd-1dbd9b246aaf",
+          "name": "Frida"
+        }
+      ],
+      "contributions": [
+        {
+          "id": "2989c017-0ada-41bd-84b1-9f83e29b4df9",
+          "memberId": "676db4b1-813b-4458-93cd-1dbd9b246aaf",
+          "amount": 5000,
+          "date": "2026-10-21T00:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}
