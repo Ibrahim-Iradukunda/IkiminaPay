@@ -29,3 +29,19 @@ The UI and API are served by the same Express app. Group data is stored in `data
 - `GET /groups/:id/summary` returns `{ "groupId", "groupName", "members": [{ "memberId", "name", "total" }], "balance" }`.
 
 The browser keeps the active group ID in local storage so the group can be reopened on that device. There is no authentication or real payment processing in this demo.
+
+## Run with Docker
+
+Build the image from the repository root:
+
+```sh
+docker build -t ikiminapay .
+```
+
+Start the app on port 3000 and keep group data in a named Docker volume:
+
+```sh
+docker run --rm -p 3000:3000 -v ikiminapay-data:/app/data ikiminapay
+```
+
+Open [http://localhost:3000](http://localhost:3000). The container runs as the non-root `node` user. The named volume preserves the local JSON data between container runs.
