@@ -7,3 +7,4 @@ const port = Number(process.env.PORT) || 3000;
 app.listen(port, () => {
   console.log(`IkiminaPay API listening on port ${port}`);
 });
+const unused = 1;
