@@ -8,7 +8,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/groups', groupRoutes);
 
-app.use((error, request, response, next) => {
+app.use((error, request, response, _next) => {
   if (error instanceof SyntaxError && error.status === 400 && error.body) {
     return response.status(400).json({ error: 'Request body must be valid JSON' });
   }
