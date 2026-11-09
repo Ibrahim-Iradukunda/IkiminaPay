@@ -11,5 +11,5 @@ terraform {
 # This block configures the provider.
 # It will automatically use the credentials you set up with 'aws configure'
 provider "aws" {
-  region = "us-east-1"  # You can change this to your preferred region
+  region = var.aws_region
 }
