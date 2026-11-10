@@ -27,3 +27,15 @@ variable "environment" {
   type        = string
   default     = "dev"
 }
+
+variable "instance_type" {
+  description = "EC2 instance type for the application instance"
+  type        = string
+  default     = "t3.micro"
+}
+
+variable "key_name" {
+  description = "Optional name of an existing EC2 key pair for SSH access"
+  type        = string
+  default     = null
+}
