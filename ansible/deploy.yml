@@ -1,0 +1,65 @@
+---
+- name: Install Docker and deploy IkiminaPay
+  hosts: app_servers
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Confirm the Terraform target is Amazon Linux 2023
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['distribution'] == 'Amazon'
+          - ansible_facts['distribution_major_version'] == '2023'
+        fail_msg: This playbook targets the Amazon Linux 2023 EC2 instance from terraform/.
+
+    - name: Install Docker, Git, and Requests for the Docker collection
+      ansible.builtin.dnf:
+        name:
+          - docker
+          - git
+          - python3-requests
+        state: present
+
+    - name: Enable and start the Docker service
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Check out the application source
+      ansible.builtin.git:
+        repo: "{{ app_repository }}"
+        dest: "{{ app_checkout_dir }}"
+        version: "{{ app_version }}"
+        update: true
+        force: false
+
+    - name: Read the checked-out commit for a repeatable image tag
+      ansible.builtin.command:
+        cmd: git rev-parse HEAD
+        chdir: "{{ app_checkout_dir }}"
+      register: app_revision
+      changed_when: false
+
+    - name: Build the app image once for this source revision
+      community.docker.docker_image:
+        name: "{{ app_image_name }}"
+        tag: "{{ app_revision.stdout }}"
+        source: build
+        force_source: false
+        build:
+          path: "{{ app_checkout_dir }}"
+
+    - name: Run the app container with persistent group data
+      community.docker.docker_container:
+        name: "{{ app_container_name }}"
+        image: "{{ app_image_name }}:{{ app_revision.stdout }}"
+        state: started
+        restart_policy: unless-stopped
+        published_ports:
+          - "{{ app_host_port }}:{{ app_container_port }}"
+        env:
+          PORT: "{{ app_container_port | string }}"
+          DATA_FILE: /app/storage/groups.json
+        volumes:
+          - "{{ app_data_volume }}:/app/storage"
