@@ -130,6 +130,8 @@ resource "aws_instance" "app" {
   vpc_security_group_ids      = [aws_security_group.app.id]
   associate_public_ip_address = true
   key_name                    = var.key_name
+  monitoring                  = true
+  ebs_optimized               = true 
 
   metadata_options {
     http_endpoint = "enabled"
@@ -144,4 +146,7 @@ resource "aws_instance" "app" {
     Name        = "ikiminapay-app"
     Environment = var.environment
   }
+}
+resource "aws_default_security_group" "default" {
+  vpc_id = aws_vpc.main.id
 }
