@@ -39,3 +39,8 @@ variable "key_name" {
   type        = string
   default     = null
 }
+
+variable "ssh_allowed_cidr" {
+  description = "IP allowed to SSH"
+  type        = string
+}
