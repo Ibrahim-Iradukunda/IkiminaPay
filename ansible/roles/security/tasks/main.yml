@@ -1,0 +1,39 @@
+# ── Firewall ─────────────────────────────────────────────
+- name: Install firewalld
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+
+- name: Start firewalld and enable it at boot
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Allow SSH through the firewall
+  ansible.posix.firewalld:
+    port: 22/tcp
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Allow the app host port through the firewall
+  ansible.posix.firewalld:
+    port: "{{ app_host_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+
+# ── SSH hardening ────────────────────────────────────────
+- name: Harden SSH settings
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-hardening.conf
+    content: |
+      PermitRootLogin no
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+    owner: root
+    group: root
+    mode: "0600"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Restart sshd

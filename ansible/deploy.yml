@@ -4,6 +4,9 @@
   become: true
   gather_facts: true
 
+  roles:
+    - security
+
   tasks:
     - name: Confirm the Terraform target is Amazon Linux 2023
       ansible.builtin.assert:
