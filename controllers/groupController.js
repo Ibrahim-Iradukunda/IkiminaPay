@@ -1,41 +1,56 @@
+
 const { createGroupService } = require('../services/groupService');
 
 const groupService = createGroupService();
 
-function createGroup(request, response, next) {
+async function createGroup(request, response, next) {
   try {
-    return response.status(201).json(groupService.createGroup(request.body));
+    const group = await groupService.createGroup(request.body);
+    return response.status(201).json(group);
   } catch (error) {
     return next(error);
   }
 }
 
-function addMember(request, response, next) {
+async function addMember(request, response, next) {
   try {
-    return response.status(201).json(
-      groupService.addMember(request.params.id, request.body)
+    const member = await groupService.addMember(
+      request.params.id,
+      request.body
     );
+
+    return response.status(201).json(member);
   } catch (error) {
     return next(error);
   }
 }
 
-function addContribution(request, response, next) {
+async function addContribution(request, response, next) {
   try {
-    return response.status(201).json(
-      groupService.addContribution(request.params.id, request.body)
+    const contribution = await groupService.addContribution(
+      request.params.id,
+      request.body
     );
+
+    return response.status(201).json(contribution);
   } catch (error) {
     return next(error);
   }
 }
 
-function getSummary(request, response, next) {
+async function getSummary(request, response, next) {
   try {
-    return response.json(groupService.getSummary(request.params.id));
+    const summary = await groupService.getSummary(request.params.id);
+    return response.json(summary);
   } catch (error) {
     return next(error);
   }
 }
 
-module.exports = { createGroup, addMember, addContribution, getSummary };
+module.exports = {
+  createGroup,
+  addMember,
+  addContribution,
+  getSummary
+};
+
