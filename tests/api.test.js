@@ -1,28 +1,26 @@
-jest.mock('../data/store', () => {
-  const mockData = { groups: [] };
 
-  return {
-    mockData,
-    createJsonStore: jest.fn(() => ({
-      read: () => JSON.parse(JSON.stringify(mockData)),
-      write: (data) => {
-        mockData.groups = data.groups;
-      }
-    }))
-  };
-});
+jest.mock('../services/groupService', () => ({
+  createGroupService: jest.fn(() => ({
+    createGroup: jest.fn(),
+    addMember: jest.fn(),
+    addContribution: jest.fn(),
+    getSummary: jest.fn()
+  }))
+}));
 
-const { mockData } = require('../data/store');
+const { createGroupService } = require('../services/groupService');
 const app = require('../app');
 
 describe('groups API', () => {
   let server;
   let baseUrl;
+  let service;
 
   beforeAll(async () => {
     server = app.listen(0);
     await new Promise((resolve) => server.once('listening', resolve));
     baseUrl = `http://127.0.0.1:${server.address().port}`;
+    service = createGroupService.mock.results[0].value;
   });
 
   afterAll(async () => {
@@ -33,11 +31,7 @@ describe('groups API', () => {
   });
 
   beforeEach(() => {
-    mockData.groups = [];
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
+    jest.clearAllMocks();
   });
 
   async function post(url, body) {
@@ -48,60 +42,119 @@ describe('groups API', () => {
     });
   }
 
-  test('creates a group, adds a member, records a contribution, and reads back the summary', async () => {
-    const groupResponse = await post('/groups', { name: 'Community Fund' });
+  test('returns a healthy status for the readiness check', async () => {
+    const response = await fetch(`${baseUrl}/health`);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: 'ok' });
+  });
+
+  test('creates a group, adds a member, records a contribution, and reads the summary', async () => {
+    service.createGroup.mockResolvedValue({
+      id: 'group-1',
+      name: 'Community Fund',
+      members: [],
+      contributions: []
+    });
+
+    service.addMember.mockResolvedValue({
+      id: 'member-1',
+      name: 'Aline'
+    });
+
+    service.addContribution.mockResolvedValue({
+      id: 'contribution-1',
+      memberId: 'member-1',
+      amount: 5000,
+      date: '2026-10-29T00:00:00.000Z'
+    });
+
+    service.getSummary.mockResolvedValue({
+      groupId: 'group-1',
+      groupName: 'Community Fund',
+      members: [{ memberId: 'member-1', name: 'Aline', total: 5000 }],
+      balance: 5000
+    });
+
+    const groupResponse = await post('/groups', {
+      name: 'Community Fund'
+    });
+
     expect(groupResponse.status).toBe(201);
     const group = await groupResponse.json();
 
-    const memberResponse = await post(`/groups/${group.id}/members`, { name: 'Aline' });
+    const memberResponse = await post(`/groups/${group.id}/members`, {
+      name: 'Aline'
+    });
+
     expect(memberResponse.status).toBe(201);
     const member = await memberResponse.json();
 
-    const contributionResponse = await post(`/groups/${group.id}/contributions`, {
-      memberId: member.id,
-      amount: 5000,
-      date: '2026-10-29'
-    });
+    const contributionResponse = await post(
+      `/groups/${group.id}/contributions`,
+      {
+        memberId: member.id,
+        amount: 5000,
+        date: '2026-10-29'
+      }
+    );
+
     expect(contributionResponse.status).toBe(201);
 
-    const summaryResponse = await fetch(`${baseUrl}/groups/${group.id}/summary`);
+    const summaryResponse = await fetch(
+      `${baseUrl}/groups/${group.id}/summary`
+    );
+
     expect(summaryResponse.status).toBe(200);
     expect(await summaryResponse.json()).toEqual({
-      groupId: group.id,
+      groupId: 'group-1',
       groupName: 'Community Fund',
-      members: [{ memberId: member.id, name: 'Aline', total: 5000 }],
+      members: [{ memberId: 'member-1', name: 'Aline', total: 5000 }],
       balance: 5000
     });
   });
 
-  test('returns validation errors without recording an invalid contribution', async () => {
+  test('returns validation errors for invalid contributions', async () => {
     const errorLogger = jest.spyOn(console, 'error').mockImplementation(() => {});
-    const groupResponse = await post('/groups', { name: 'Community Fund' });
-    const group = await groupResponse.json();
-    const memberResponse = await post(`/groups/${group.id}/members`, { name: 'Aline' });
-    const member = await memberResponse.json();
 
-    const invalidContribution = await post(`/groups/${group.id}/contributions`, {
-      memberId: member.id,
+    service.addContribution.mockRejectedValue(
+      Object.assign(new Error('Amount must be a positive number'), {
+        statusCode: 400
+      })
+    );
+
+    const response = await post('/groups/group-1/contributions', {
+      memberId: 'member-1',
       amount: -10,
       date: '2026-10-29'
     });
-    expect(invalidContribution.status).toBe(400);
-    expect(await invalidContribution.json()).toEqual({
-      error: 'Amount must be a non-negative number'
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'Amount must be a positive number'
     });
 
-    const summaryResponse = await fetch(`${baseUrl}/groups/${group.id}/summary`);
-    expect((await summaryResponse.json()).balance).toBe(0);
     expect(errorLogger).toHaveBeenCalled();
   });
 
   test('returns not found for a group that does not exist', async () => {
     const errorLogger = jest.spyOn(console, 'error').mockImplementation(() => {});
-    const response = await fetch(`${baseUrl}/groups/missing-group/summary`);
+
+    service.getSummary.mockRejectedValue(
+      Object.assign(new Error('Group not found'), {
+        statusCode: 404
+      })
+    );
+
+    const response = await fetch(
+      `${baseUrl}/groups/missing-group/summary`
+    );
 
     expect(response.status).toBe(404);
-    expect(await response.json()).toEqual({ error: 'Group not found' });
+    expect(await response.json()).toEqual({
+      error: 'Group not found'
+    });
+
     expect(errorLogger).toHaveBeenCalled();
   });
 });

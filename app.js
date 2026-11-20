@@ -6,6 +6,9 @@ const app = express();
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.get('/health', (_request, response) => {
+  response.status(200).json({ status: 'ok' });
+});
 app.use('/groups', groupRoutes);
 
 app.use((error, request, response, _next) => {

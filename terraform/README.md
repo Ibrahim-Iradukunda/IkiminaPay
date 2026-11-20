@@ -1,65 +1,78 @@
-# Terraform — AWS Infrastructure
+# AWS Infrastructure
 
-Provisions AWS networking and an EC2 application instance for the Campus Notifier app:
-- VPC with DNS hostnames enabled
-- Public subnet with auto-assigned public IPs
-- Internet Gateway + route table
-- Security group allowing SSH (22) and the app port (8000)
-- ECR repository for container images
-- EC2 instance running the latest matching Amazon Linux 2023 image (`t3.micro` by default)
+This Terraform configuration provisions the AWS environment for IkiminaPay:
+
+- A VPC with two public and two private subnets in separate availability zones.
+- A public bastion host (also the HTTP reverse proxy for the demo URL).
+- A private EC2 application instance with no public IP.
+- A NAT gateway for private-instance package and ECR access.
+- A private, encrypted PostgreSQL RDS instance.
+- Security groups that restrict SSH, app, and database traffic to their required sources.
+- A private ECR repository and an EC2 instance role limited to pulling its images.
+
+The application currently stores group data in a JSON file. RDS is provisioned to satisfy
+the infrastructure requirement, but the application does not connect to it yet.
 
 ## Prerequisites
 
-- [Terraform ≥ 1.5](https://developer.hashicorp.com/terraform/install)
-- An AWS account with permissions to create VPC, EC2, security group, and ECR resources
-- AWS credentials configured (`aws configure` or environment variables)
+- Terraform 1.5 or newer.
+- AWS CLI configured with credentials authorized to provision VPC, EC2, RDS, ECR, IAM,
+  NAT gateway, and Elastic IP resources.
+- An EC2 key pair created in the target region.
+- A stable public IPv4 address/CIDR for restricting SSH to the bastion.
 
-## Usage
+## Configure and preview
 
-Run these commands from this `terraform` directory:
-
-```bash
-# 1. Initialise Terraform and download the AWS provider
-terraform init
-
-# 2. Preview the infrastructure changes
-terraform plan
-
-# 3. Create the infrastructure
-terraform apply
-
-# 4. Remove the infrastructure when it is no longer needed
-terraform destroy
-```
-
-Terraform prompts for confirmation before applying or destroying resources. The instance's public IP, private IP, instance ID, VPC ID, subnet ID, security group ID, and ECR repository URL are printed after apply. Retrieve them later with `terraform output`.
-
-To enable SSH key-based access, create an EC2 key pair in the selected region and set `key_name` to its name. For example, add it to `terraform.tfvars`:
+From the repository root, create `terraform/terraform.tfvars` (this file is git-ignored):
 
 ```hcl
-key_name = "my-ec2-key"
+aws_region          = "us-east-1"
+environment         = "dev"
+key_name            = "YOUR_EXISTING_EC2_KEY_PAIR_NAME"
+ssh_allowed_cidr    = "YOUR_PUBLIC_IP/32"
+database_password   = "REPLACE_WITH_A_RANDOM_PASSWORD_OF_16_OR_MORE_CHARACTERS"
 ```
 
-Without `key_name`, the instance is created without an EC2 key pair.
+Replace every placeholder before applying. Do not commit `terraform.tfvars` or paste the
+database password into a tracked file. Terraform state also contains the database password;
+use an encrypted, access-controlled remote state backend before sharing this environment.
 
-## Variables
-
-Override defaults by passing `-var` flags or creating a `terraform.tfvars` file:
-
-| Variable        | Default        | Description                        |
-|-----------------|----------------|------------------------------------|
-| `aws_region`    | `us-east-1`    | AWS region                         |
-| `vpc_cidr`      | `10.0.0.0/16`  | VPC CIDR block                     |
-| `subnet_cidr`   | `10.0.1.0/24`  | Public subnet CIDR block           |
-| `app_port`      | `8000`         | Application port opened in the SG  |
-| `environment`   | `dev`          | Value for the `Environment` tag    |
-| `instance_type` | `t3.micro`     | EC2 instance type                  |
-| `key_name`      | `null`         | Optional existing EC2 key pair name |
-
-Example `terraform.tfvars`:
-```hcl
-aws_region  = "eu-west-1"
-environment = "staging"
+```powershell
+terraform -chdir=terraform init
+terraform -chdir=terraform validate
+terraform -chdir=terraform plan
 ```
 
-> **Never commit `terraform.tfvars` if it contains sensitive values.** It is already listed in `.gitignore`.
+Review the plan and the estimated AWS charges before creating resources:
+
+```powershell
+terraform -chdir=terraform apply
+```
+
+This stack includes a NAT gateway and RDS, which incur ongoing charges while running.
+Destroy the environment when it is no longer needed:
+
+```powershell
+terraform -chdir=terraform destroy
+```
+
+Destroying the stack deletes the database without a final snapshot. Back up anything you
+need first.
+
+## Outputs
+
+```powershell
+terraform -chdir=terraform output
+terraform -chdir=terraform output -raw bastion_public_ip
+terraform -chdir=terraform output -raw app_private_ip
+terraform -chdir=terraform output -raw ecr_repository_url
+terraform -chdir=terraform output -raw bastion_security_group_id
+```
+
+The public demo URL is `http://<bastion_public_ip>` after Ansible configures Nginx.
+
+## Resources
+
+Terraform resources are grouped by concern in `network.tf`, `security.tf`, `compute.tf`,
+`registry.tf`, and `database.tf`. `main.tf` contains shared AWS data sources;
+`variables.tf`, `outputs.tf`, and `provider.tf` define the root configuration interface.
