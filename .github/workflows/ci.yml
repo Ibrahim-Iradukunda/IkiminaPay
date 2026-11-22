@@ -41,6 +41,7 @@ jobs:
         run: docker build -t ikiminapay:ci .
 
 
+      # Confirmed real release: aquasecurity/trivy-action v0.36.0.
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -48,15 +49,22 @@ jobs:
            severity: HIGH,CRITICAL
            exit-code: '1'
            ignore-unfixed: true
+
   terraform-scan:
     runs-on: ubuntu-latest
     steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-        - name: Scan terraform with checkov
-          uses: bridgecrewio/checkov-action@v12
-          with:
-            directory: terraform
-            framework: terraform
-            skip_check: CKV_AWS_130,CKV_AWS_88,CKV_AWS_382,CKV_AWS_136,CKV2_AWS_11,CKV2_AWS_41 
+      # Checkov exceptions previously used for these checks are intentionally not retained:
+      # - CKV_AWS_130: public-IP assignment is disabled for the public subnet and EC2 instance.
+      # - CKV_AWS_88: the EC2 instance no longer receives a public IP.
+      # - CKV_AWS_382: the security group now allows only explicit HTTP, HTTPS, and DNS egress.
+      # - CKV_AWS_136: the ECR repository uses a customer-managed KMS key.
+      # - CKV2_AWS_11: a CloudWatch-based VPC flow log is configured for the VPC.
+      # - CKV2_AWS_41: the EC2 instance has an IAM role and instance profile.
+      - name: Scan terraform with checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          framework: terraform
