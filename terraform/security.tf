@@ -1,3 +1,4 @@
+
 resource "aws_security_group" "bastion" {
   name        = "ikiminapay-bastion-sg"
   description = "Restricted SSH and public HTTP reverse proxy"
@@ -20,11 +21,19 @@ resource "aws_security_group" "bastion" {
   }
 
   egress {
-    description = "Outbound package, registry, and proxy traffic"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    description = "SSH to private application subnet"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = var.private_subnet_cidrs
+  }
+
+  egress {
+    description = "Nginx proxy traffic to private application subnet"
+    from_port   = var.app_port
+    to_port     = var.app_port
+    protocol    = "tcp"
+    cidr_blocks = var.private_subnet_cidrs
   }
 
   tags = {
@@ -55,11 +64,19 @@ resource "aws_security_group" "app" {
   }
 
   egress {
-    description = "Outbound package and ECR traffic through NAT"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "HTTPS for ECR, Secrets Manager, and package downloads"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "PostgreSQL traffic to private subnet"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = var.private_subnet_cidrs
   }
 
   tags = {
@@ -81,13 +98,7 @@ resource "aws_security_group" "database" {
     security_groups = [aws_security_group.app.id]
   }
 
-  egress {
-    description = "Outbound traffic"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  egress = []
 
   tags = {
     Name        = "ikiminapay-database-sg"
