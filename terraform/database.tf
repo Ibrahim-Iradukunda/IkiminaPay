@@ -8,9 +8,31 @@ resource "aws_db_subnet_group" "main" {
   }
 }
 
+data "aws_caller_identity" "current" {}
+
 resource "aws_kms_key" "database" {
   description         = "IkiminaPay RDS encryption"
   enable_key_rotation = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "EnableRootAccount"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+        Action    = "kms:*"
+        Resource  = "*"
+      },
+      {
+        Sid       = "AllowRDSUse"
+        Effect    = "Allow"
+        Principal = { Service = "rds.amazonaws.com" }
+        Action    = ["kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey*"]
+        Resource  = "*"
+      }
+    ]
+  })
 }
 
 resource "aws_iam_role" "rds_monitoring" {
@@ -51,6 +73,11 @@ resource "aws_db_parameter_group" "postgres" {
     name  = "log_min_duration_statement"
     value = "1000"
   }
+
+  parameter {
+    name  = "rds.force_ssl"
+    value = "1"
+  }
 }
 
 resource "aws_db_instance" "main" {
@@ -69,7 +96,6 @@ resource "aws_db_instance" "main" {
   publicly_accessible          = false
   auto_minor_version_upgrade   = true
   backup_retention_period      = 7
-  deletion_protection           = true
   skip_final_snapshot          = true
   apply_immediately            = true
   performance_insights_enabled = true
@@ -81,6 +107,7 @@ resource "aws_db_instance" "main" {
   multi_az                      = true
   iam_database_authentication_enabled = true
   deletion_protection           = true
+  rds_ca_cert_identifier       = "rds-ca-rsa2048-g1"
   parameter_group_name          = aws_db_parameter_group.postgres.name
 
   tags = {

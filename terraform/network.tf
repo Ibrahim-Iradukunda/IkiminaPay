@@ -8,59 +8,59 @@ resource "aws_vpc" "main" {
     Name        = "ikiminapay-vpc"
     Environment = var.environment
   }
+}
 
-  resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
-    name              = "/aws/vpc/ikiminapay-flow-logs"
-    retention_in_days = 365
-  }
+resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
+  name              = "/aws/vpc/ikiminapay-flow-logs"
+  retention_in_days = 365
+}
 
-  resource "aws_iam_role" "flow_logs" {
-    name = "ikiminapay-vpc-flow-logs-role"
+resource "aws_iam_role" "flow_logs" {
+  name = "ikiminapay-vpc-flow-logs-role"
 
-    assume_role_policy = jsonencode({
-      Version = "2012-10-17"
-      Statement = [{
-        Effect = "Allow"
-        Action = "sts:AssumeRole"
-        Principal = {
-          Service = "vpc-flow-logs.amazonaws.com"
-        }
-      }]
-    })
-  }
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = "sts:AssumeRole"
+      Principal = {
+        Service = "vpc-flow-logs.amazonaws.com"
+      }
+    }]
+  })
+}
 
-  resource "aws_iam_role_policy" "flow_logs" {
-    name = "ikiminapay-vpc-flow-logs"
-    role = aws_iam_role.flow_logs.id
+resource "aws_iam_role_policy" "flow_logs" {
+  name = "ikiminapay-vpc-flow-logs"
+  role = aws_iam_role.flow_logs.id
 
-    policy = jsonencode({
-      Version = "2012-10-17"
-      Statement = [{
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "${aws_cloudwatch_log_group.vpc_flow_logs.arn}:*"
-      }]
-    })
-  }
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ]
+      Resource = "${aws_cloudwatch_log_group.vpc_flow_logs.arn}:*"
+    }]
+  })
+}
 
-  resource "aws_flow_log" "main" {
-    vpc_id               = aws_vpc.main.id
-    traffic_type         = "ALL"
-    log_destination_type = "cloud-watch-logs"
-    log_destination      = aws_cloudwatch_log_group.vpc_flow_logs.arn
-    iam_role_arn         = aws_iam_role.flow_logs.arn
-  }
+resource "aws_flow_log" "main" {
+  vpc_id               = aws_vpc.main.id
+  traffic_type         = "ALL"
+  log_destination_type = "cloud-watch-logs"
+  log_destination      = aws_cloudwatch_log_group.vpc_flow_logs.arn
+  iam_role_arn         = aws_iam_role.flow_logs.arn
+}
 
-  #checkov:skip=CKV2_AWS_12:The default security group is explicitly restricted to deny all ingress and egress.
-  resource "aws_default_security_group" "main" {
-    vpc_id = aws_vpc.main.id
+#checkov:skip=CKV2_AWS_12:The default security group is explicitly restricted to deny all ingress and egress.
+resource "aws_default_security_group" "main" {
+  vpc_id = aws_vpc.main.id
 
-    ingress = []
-    egress  = []
-  }
+  ingress = []
+  egress  = []
 }
 
 resource "aws_internet_gateway" "main" {
