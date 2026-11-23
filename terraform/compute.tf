@@ -86,9 +86,8 @@ resource "aws_iam_instance_profile" "bastion" {
   role = aws_iam_role.bastion.name
 }
 
-#checkov:skip=CKV_AWS_88:The demo bastion intentionally has a public IP for the browser demo.
-#checkov:skip=CKV_AWS_88:The demo bastion requires a public IP behind its restricted security group.
 resource "aws_instance" "bastion" {
+  #checkov:skip=CKV_AWS_88:The demo bastion requires a public IP behind its restricted security group.
   ami                         = "ami-060423653522ff830"
   instance_type               = var.bastion_instance_type
   subnet_id                   = aws_subnet.public[0].id
