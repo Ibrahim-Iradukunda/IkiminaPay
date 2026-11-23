@@ -1,5 +1,6 @@
-# This block tells Terraform we need the 'aws' provider
 terraform {
+  required_version = ">= 1.5.0"
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -8,8 +9,6 @@ terraform {
   }
 }
 
-# This block configures the provider.
-# It will automatically use the credentials you set up with 'aws configure'
 provider "aws" {
   region = var.aws_region
 }

@@ -5,58 +5,65 @@ on:
     branches-ignore: [main]
   pull_request:
     branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      # Get the repository code
-      - name: Checkout code
+      - name: Check out source
         uses: actions/checkout@v4
 
-      # Install Node.js 20 and cache npm packages
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      # Install exact dependency versions from package-lock.json
       - name: Install dependencies
         run: npm ci
 
-      - name: Audit dependencies
+      - name: Audit npm dependencies
         run: npm audit --audit-level=high
 
-      # Run ESLint (fails the pipeline on errors)
       - name: Run lint
         run: npm run lint
 
-      # Run Jest tests (fails the pipeline on failures)
       - name: Run tests
         run: npm test
 
-      # Build the Docker image (fails if the Dockerfile is broken)
       - name: Build Docker image
         run: docker build -t ikiminapay:ci .
-
 
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-           image-ref: ikiminapay:ci
-           severity: HIGH,CRITICAL
-           exit-code: '1'
-           ignore-unfixed: true
+          image-ref: ikiminapay:ci
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
   terraform-scan:
     runs-on: ubuntu-latest
     steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
+      - name: Check out source
+        uses: actions/checkout@v4
 
-        - name: Scan terraform with checkov
-          uses: bridgecrewio/checkov-action@v12
-          with:
-            directory: terraform
-            framework: terraform
-            skip_check: CKV_AWS_130,CKV_AWS_88,CKV_AWS_382,CKV_AWS_136,CKV2_AWS_11,CKV2_AWS_41 
+      - name: Scan Terraform configuration with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          version: v0.76.2
+          scan-type: config
+          scan-ref: terraform
+          trivyignores: .trivyignore
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Report additional Terraform findings with Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          framework: terraform

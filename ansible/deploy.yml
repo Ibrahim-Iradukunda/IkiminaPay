@@ -1,65 +1,172 @@
 ---
-- name: Install Docker and deploy IkiminaPay
+- name: Configure the private application instance and deploy the ECR image
   hosts: app_servers
   become: true
   gather_facts: true
 
   tasks:
-    - name: Confirm the Terraform target is Amazon Linux 2023
+    - name: Confirm the target is Amazon Linux 2023
       ansible.builtin.assert:
         that:
           - ansible_facts['distribution'] == 'Amazon'
           - ansible_facts['distribution_major_version'] == '2023'
-        fail_msg: This playbook targets the Amazon Linux 2023 EC2 instance from terraform/.
+          - app_image is defined
+          - aws_region is defined
+        fail_msg: Set app_image and aws_region and target the Terraform Amazon Linux 2023 instance.
 
-    - name: Install Docker, Git, and Requests for the Docker collection
+    - name: Install Docker, Docker Compose, and AWS CLI
       ansible.builtin.dnf:
         name:
           - docker
-          - git
-          - python3-requests
+          - awscli-2
         state: present
+    - name: Create Docker CLI plugins directory
+      ansible.builtin.file:
+        path: /usr/local/lib/docker/cli-plugins
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+    - name: Install Docker Compose plugin
+      ansible.builtin.get_url:
+        url: https://github.com/docker/compose/releases/download/v5.7.1/docker-compose-linux-x86_64
+        dest: /usr/local/lib/docker/cli-plugins/docker-compose
+        owner: root
+        group: root
+        mode: "0755"
 
-    - name: Enable and start the Docker service
+    - name: Enable and start Docker
       ansible.builtin.service:
         name: docker
         state: started
         enabled: true
 
-    - name: Check out the application source
-      ansible.builtin.git:
-        repo: "{{ app_repository }}"
-        dest: "{{ app_checkout_dir }}"
-        version: "{{ app_version }}"
-        update: true
-        force: false
-
-    - name: Read the checked-out commit for a repeatable image tag
+    - name: Create the application deployment directory
+      ansible.builtin.file:
+        path: /opt/ikiminapay
+        state: directory
+        mode: "0755"
+    - name: Retrieve PostgreSQL credentials from AWS Secrets Manager
       ansible.builtin.command:
-        cmd: git rev-parse HEAD
-        chdir: "{{ app_checkout_dir }}"
-      register: app_revision
+        cmd: aws secretsmanager get-secret-value --secret-id ikiminapay/dev/database --region {{ aws_region }} --query SecretString --output text
+      register: database_secret_raw
+      changed_when: false
+      no_log: true
+    - name: Parse PostgreSQL credentials
+      ansible.builtin.set_fact:
+        database_secret: "{{ database_secret_raw.stdout | from_json }}"
+      no_log: true
+    - name: Create protected PostgreSQL environment file
+      ansible.builtin.copy:
+        dest: /opt/ikiminapay/.env
+        content: |
+          DB_HOST={{ database_secret.host }}
+          DB_PORT={{ database_secret.port }}
+          DB_NAME={{ database_secret.dbname }}
+          DB_USER={{ database_secret.username }}
+          DB_PASSWORD={{ database_secret.password }}
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Install the production Compose definition
+      ansible.builtin.template:
+        src: templates/docker-compose.production.yml.j2
+        dest: /opt/ikiminapay/docker-compose.yml
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Authenticate Docker to the private ECR repository
+      ansible.builtin.shell:
+        cmd: "aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ app_image.split('/')[0] }}"
+        executable: /bin/bash
+      changed_when: true
+      no_log: true
+
+    - name: Pull the release image from ECR
+      ansible.builtin.command:
+        cmd: docker compose pull
+        chdir: /opt/ikiminapay
+      environment:
+        APP_IMAGE: "{{ app_image }}"
       changed_when: false
 
-    - name: Build the app image once for this source revision
-      community.docker.docker_image:
-        name: "{{ app_image_name }}"
-        tag: "{{ app_revision.stdout }}"
-        source: build
-        force_source: false
-        build:
-          path: "{{ app_checkout_dir }}"
+    - name: Start or update the application
+      ansible.builtin.command:
+        cmd: docker compose up -d --remove-orphans
+        chdir: /opt/ikiminapay
+      register: compose_up
+      environment:
+        APP_IMAGE: "{{ app_image }}"
+      changed_when: compose_up.stdout is search('Created|Recreated|Started')
 
-    - name: Run the app container with persistent group data
-      community.docker.docker_container:
-        name: "{{ app_container_name }}"
-        image: "{{ app_image_name }}:{{ app_revision.stdout }}"
+    - name: Initialize PostgreSQL database schema
+      ansible.builtin.command:
+        cmd: >-
+          docker compose exec -T app node -e
+          "const fs=require('fs');
+          const pool=require('./data/database');
+          pool.query(fs.readFileSync('./data/schema.sql','utf8'))
+          .then(()=>pool.end())
+          .catch(async e=>{console.error(e.message);await pool.end();process.exit(1)})"
+        chdir: /opt/ikiminapay
+      register: schema_result
+      changed_when: true
+      no_log: true
+      environment:
+        APP_IMAGE: "{{ app_image }}"
+
+    - name: Wait for the application health endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:{{ app_port | default(3000) }}/health
+        status_code: 200
+      register: app_health
+      retries: 12
+      delay: 5
+      until: app_health.status | default(0) == 200
+
+- name: Configure the public HTTP reverse proxy on the bastion
+  hosts: proxy_servers
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Confirm the app private IP was provided
+      ansible.builtin.assert:
+        that:
+          - app_private_ip is defined
+        fail_msg: Set app_private_ip to the private application instance address.
+
+    - name: Install Nginx
+      ansible.builtin.dnf:
+        name: nginx
+        state: present
+
+    - name: Remove the package's default Nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/conf.d/default.conf
+        state: absent
+      notify: Restart Nginx
+
+    - name: Configure Nginx to forward public traffic to the private app
+      ansible.builtin.template:
+        src: templates/nginx-ikiminapay.conf.j2
+        dest: /etc/nginx/conf.d/ikiminapay.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Nginx
+
+    - name: Enable and start Nginx
+      ansible.builtin.service:
+        name: nginx
         state: started
-        restart_policy: unless-stopped
-        published_ports:
-          - "{{ app_host_port }}:{{ app_container_port }}"
-        env:
-          PORT: "{{ app_container_port | string }}"
-          DATA_FILE: /app/storage/groups.json
-        volumes:
-          - "{{ app_data_volume }}:/app/storage"
+        enabled: true
+
+  handlers:
+    - name: Restart Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted

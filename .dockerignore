@@ -1,8 +1,19 @@
 # Keep local machine files and credentials out of the Docker build context.
 .git
+.github
+.vscode
+.terraform
+terraform
+ansible
 .env
 .env.*
 !.env.example
+*.tfvars
+*.tfvars.*
+*.tfstate
+*.tfstate.*
+*.pem
+!certs/eu-north-1-bundle.pem
 
 # Use clean container dependencies and omit generated local state.
 node_modules

@@ -1,0 +1,21 @@
+services:
+  app:
+    image: ${APP_IMAGE:?APP_IMAGE must be set}
+    container_name: ikiminapay
+    env_file:
+      - /opt/ikiminapay/.env
+    environment:
+      PORT: "{{ app_port | default(3000) }}"
+    ports:
+      - "{{ app_port | default(3000) }}:{{ app_port | default(3000) }}"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:' + (process.env.PORT || 3000) + '/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
