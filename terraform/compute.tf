@@ -87,6 +87,7 @@ resource "aws_iam_instance_profile" "bastion" {
 }
 
 resource "aws_instance" "bastion" {
+  #checkov:skip=CKV_AWS_88:The bastion is intentionally public so operators can SSH and users can reach the demo reverse proxy.
   ami                         = "ami-060423653522ff830"
   instance_type               = var.bastion_instance_type
   subnet_id                   = aws_subnet.public[0].id
