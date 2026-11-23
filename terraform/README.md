@@ -11,7 +11,8 @@ This Terraform configuration provisions the AWS environment for IkiminaPay:
 - A private ECR repository and an EC2 instance role limited to pulling its images.
 - The VPC default security group has no ingress or egress rules, and subnets use pinned
   Availability Zone IDs so adding a new AWS zone cannot silently move resources.
-- PostgreSQL logs DDL statements and queries taking at least one second. The demo uses
+- PostgreSQL enforces SSL, logs DDL statements and queries taking at least one second.
+  The VPC flow-log group is encrypted with a customer-managed KMS key. The demo uses
   single-AZ RDS, no deletion protection, and no enhanced monitoring to keep costs down;
   these exceptions are documented inline for Checkov. Enable Multi-AZ, deletion
   protection, and enhanced monitoring for a production availability and operations target.
@@ -64,7 +65,7 @@ terraform -chdir=terraform destroy
 ```
 
 Destroying the stack deletes the database without a final snapshot. Back up anything you
-need first. The VPC, NAT gateway, and encrypted Performance Insights key also incur
+need first. The VPC, NAT gateway, RDS instance, and customer-managed KMS key incur
 ongoing charges while the stack is running.
 
 The default `availability_zone_ids` are for `eu-north-1`; when changing regions, set two
