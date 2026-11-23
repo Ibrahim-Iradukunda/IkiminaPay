@@ -24,11 +24,13 @@ resource "aws_db_instance" "main" {
   publicly_accessible          = false
   multi_az                     = false
   auto_minor_version_upgrade   = true
-  backup_retention_period      = 0
+  backup_retention_period      = 7
   deletion_protection          = false
   skip_final_snapshot          = true
   apply_immediately            = true
-  performance_insights_enabled = false
+  performance_insights_enabled = true
+  copy_tags_to_snapshot         = true
+  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
 
   tags = {
     Name        = "ikiminapay-database"

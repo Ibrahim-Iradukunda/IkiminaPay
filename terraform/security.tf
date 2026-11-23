@@ -1,4 +1,5 @@
 
+#checkov:skip=CKV_AWS_260:Public HTTP on the demo Nginx bastion is required for the browser demo.
 resource "aws_security_group" "bastion" {
   name        = "ikiminapay-bastion-sg"
   description = "Restricted SSH and public HTTP reverse proxy"

@@ -66,6 +66,26 @@ resource "aws_iam_instance_profile" "app" {
   role = aws_iam_role.app.name
 }
 
+resource "aws_iam_role" "bastion" {
+  name = "ikiminapay-bastion-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = "sts:AssumeRole"
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+    }]
+  })
+}
+
+resource "aws_iam_instance_profile" "bastion" {
+  name = "ikiminapay-bastion-profile"
+  role = aws_iam_role.bastion.name
+}
+
 resource "aws_instance" "bastion" {
   ami                         = "ami-060423653522ff830"
   instance_type               = var.bastion_instance_type
@@ -73,6 +93,7 @@ resource "aws_instance" "bastion" {
   vpc_security_group_ids      = [aws_security_group.bastion.id]
   associate_public_ip_address = true
   key_name                    = var.key_name
+  iam_instance_profile        = aws_iam_instance_profile.bastion.name
   monitoring                  = true
   ebs_optimized               = true
 
