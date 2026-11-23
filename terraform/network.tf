@@ -7,58 +7,59 @@ resource "aws_vpc" "main" {
     Name        = "ikiminapay-vpc"
     Environment = var.environment
   }
+}
 
-  resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
-    name              = "/aws/vpc/ikiminapay-flow-logs"
-    retention_in_days = 365
-  }
+resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
+  name              = "/aws/vpc/ikiminapay-flow-logs"
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.rds_performance_insights.arn
+}
 
-  resource "aws_iam_role" "flow_logs" {
-    name = "ikiminapay-vpc-flow-logs-role"
+resource "aws_iam_role" "flow_logs" {
+  name = "ikiminapay-vpc-flow-logs-role"
 
-    assume_role_policy = jsonencode({
-      Version = "2012-10-17"
-      Statement = [{
-        Effect = "Allow"
-        Action = "sts:AssumeRole"
-        Principal = {
-          Service = "vpc-flow-logs.amazonaws.com"
-        }
-      }]
-    })
-  }
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = "sts:AssumeRole"
+      Principal = {
+        Service = "vpc-flow-logs.amazonaws.com"
+      }
+    }]
+  })
+}
 
-  resource "aws_iam_role_policy" "flow_logs" {
-    name = "ikiminapay-vpc-flow-logs"
-    role = aws_iam_role.flow_logs.id
+resource "aws_iam_role_policy" "flow_logs" {
+  name = "ikiminapay-vpc-flow-logs"
+  role = aws_iam_role.flow_logs.id
 
-    policy = jsonencode({
-      Version = "2012-10-17"
-      Statement = [{
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "${aws_cloudwatch_log_group.vpc_flow_logs.arn}:*"
-      }]
-    })
-  }
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ]
+      Resource = "${aws_cloudwatch_log_group.vpc_flow_logs.arn}:*"
+    }]
+  })
+}
 
-  resource "aws_flow_log" "main" {
-    vpc_id               = aws_vpc.main.id
-    traffic_type         = "ALL"
-    log_destination_type = "cloud-watch-logs"
-    log_destination      = aws_cloudwatch_log_group.vpc_flow_logs.arn
-    iam_role_arn         = aws_iam_role.flow_logs.arn
-  }
+resource "aws_flow_log" "main" {
+  vpc_id               = aws_vpc.main.id
+  traffic_type         = "ALL"
+  log_destination_type = "cloud-watch-logs"
+  log_destination      = aws_cloudwatch_log_group.vpc_flow_logs.arn
+  iam_role_arn         = aws_iam_role.flow_logs.arn
+}
 
-  resource "aws_default_security_group" "main" {
-    vpc_id = aws_vpc.main.id
+resource "aws_default_security_group" "main" {
+  vpc_id = aws_vpc.main.id
 
-    ingress = []
-    egress  = []
-  }
+  ingress = []
+  egress  = []
 }
 
 resource "aws_internet_gateway" "main" {
@@ -74,7 +75,7 @@ resource "aws_subnet" "public" {
   count                   = 2
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidrs[count.index]
-  availability_zone       = data.aws_availability_zones.available.names[count.index]
+  availability_zone_id    = var.availability_zone_ids[count.index]
   map_public_ip_on_launch = false
 
   tags = {
@@ -84,10 +85,10 @@ resource "aws_subnet" "public" {
 }
 
 resource "aws_subnet" "private" {
-  count             = 2
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet_cidrs[count.index]
-  availability_zone = data.aws_availability_zones.available.names[count.index]
+  count                = 2
+  vpc_id               = aws_vpc.main.id
+  cidr_block           = var.private_subnet_cidrs[count.index]
+  availability_zone_id = var.availability_zone_ids[count.index]
 
   tags = {
     Name        = "ikiminapay-private-${count.index + 1}"
