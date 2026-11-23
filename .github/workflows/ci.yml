@@ -55,8 +55,10 @@ jobs:
       - name: Scan Terraform configuration with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
+          version: v0.76.2
           scan-type: config
           scan-ref: terraform
+          trivyignores: .trivyignore
           severity: HIGH,CRITICAL
           exit-code: "1"
 

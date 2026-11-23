@@ -1,0 +1,4 @@
+# Accepted exception: application requires outbound HTTPS for ECR,
+# Secrets Manager, Amazon Linux package repositories and GitHub downloads.
+# Review this exception before removing NAT Gateway or changing deployment.
+AWS-0104
