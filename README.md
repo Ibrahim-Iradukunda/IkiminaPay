@@ -218,7 +218,8 @@ the first successful CD run, replace this line with `http://<bastion_public_ip>`
 
 Create an IAM OIDC provider for `https://token.actions.githubusercontent.com` if your
 AWS account does not already have one. Create a role whose trust policy limits OIDC to
-this repository's `main` branch:
+this repository's pull-request workflow subject. The CD workflow runs its deployment
+jobs only when a pull request to `main` is closed as merged:
 
 ```json
 {
@@ -230,7 +231,7 @@ this repository's `main` branch:
     "Condition": {
       "StringEquals": {
         "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-        "token.actions.githubusercontent.com:sub": "repo:Ibrahim-Iradukunda/IkiminaPay:ref:refs/heads/main"
+        "token.actions.githubusercontent.com:sub": "repo:Ibrahim-Iradukunda/IkiminaPay:pull_request"
       }
     }
   }]
