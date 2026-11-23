@@ -18,9 +18,22 @@
       ansible.builtin.dnf:
         name:
           - docker
-          - docker-compose-plugin
           - awscli-2
         state: present
+    - name: Create Docker CLI plugins directory
+      ansible.builtin.file:
+        path: /usr/local/lib/docker/cli-plugins
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+    - name: Install Docker Compose plugin
+      ansible.builtin.get_url:
+        url: https://github.com/docker/compose/releases/download/v5.7.1/docker-compose-linux-x86_64
+        dest: /usr/local/lib/docker/cli-plugins/docker-compose
+        owner: root
+        group: root
+        mode: "0755"
 
     - name: Enable and start Docker
       ansible.builtin.service:
@@ -33,6 +46,29 @@
         path: /opt/ikiminapay
         state: directory
         mode: "0755"
+    - name: Retrieve PostgreSQL credentials from AWS Secrets Manager
+      ansible.builtin.command:
+        cmd: aws secretsmanager get-secret-value --secret-id ikiminapay/dev/database --region {{ aws_region }} --query SecretString --output text
+      register: database_secret_raw
+      changed_when: false
+      no_log: true
+    - name: Parse PostgreSQL credentials
+      ansible.builtin.set_fact:
+        database_secret: "{{ database_secret_raw.stdout | from_json }}"
+      no_log: true
+    - name: Create protected PostgreSQL environment file
+      ansible.builtin.copy:
+        dest: /opt/ikiminapay/.env
+        content: |
+          DB_HOST={{ database_secret.host }}
+          DB_PORT={{ database_secret.port }}
+          DB_NAME={{ database_secret.dbname }}
+          DB_USER={{ database_secret.username }}
+          DB_PASSWORD={{ database_secret.password }}
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
 
     - name: Install the production Compose definition
       ansible.builtin.template:
@@ -65,6 +101,22 @@
       environment:
         APP_IMAGE: "{{ app_image }}"
       changed_when: compose_up.stdout is search('Created|Recreated|Started')
+
+    - name: Initialize PostgreSQL database schema
+      ansible.builtin.command:
+        cmd: >-
+          docker compose exec -T app node -e
+          "const fs=require('fs');
+          const pool=require('./data/database');
+          pool.query(fs.readFileSync('./data/schema.sql','utf8'))
+          .then(()=>pool.end())
+          .catch(async e=>{console.error(e.message);await pool.end();process.exit(1)})"
+        chdir: /opt/ikiminapay
+      register: schema_result
+      changed_when: true
+      no_log: true
+      environment:
+        APP_IMAGE: "{{ app_image }}"
 
     - name: Wait for the application health endpoint
       ansible.builtin.uri:

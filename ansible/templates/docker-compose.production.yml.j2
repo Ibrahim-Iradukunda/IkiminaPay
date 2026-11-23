@@ -2,13 +2,12 @@ services:
   app:
     image: ${APP_IMAGE:?APP_IMAGE must be set}
     container_name: ikiminapay
+    env_file:
+      - /opt/ikiminapay/.env
     environment:
       PORT: "{{ app_port | default(3000) }}"
-      DATA_FILE: /app/storage/groups.json
     ports:
       - "{{ app_port | default(3000) }}:{{ app_port | default(3000) }}"
-    volumes:
-      - ikiminapay-data:/app/storage
     restart: unless-stopped
     healthcheck:
       test:
@@ -20,6 +19,3 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-
-volumes:
-  ikiminapay-data:
