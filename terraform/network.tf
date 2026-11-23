@@ -1,3 +1,4 @@
+#checkov:skip=CKV2_AWS_11:A CloudWatch flow log is configured below for this VPC.
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
@@ -53,6 +54,7 @@ resource "aws_vpc" "main" {
     iam_role_arn         = aws_iam_role.flow_logs.arn
   }
 
+  #checkov:skip=CKV2_AWS_12:The default security group is explicitly restricted to deny all ingress and egress.
   resource "aws_default_security_group" "main" {
     vpc_id = aws_vpc.main.id
 

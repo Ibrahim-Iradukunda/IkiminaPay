@@ -1,3 +1,4 @@
+#checkov:skip=CKV_AWS_394:Zone list is pinned to opt-in-not-required zones for this fixed demo region.
 data "aws_availability_zones" "available" {
   state = "available"
 
