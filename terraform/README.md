@@ -18,8 +18,10 @@ This Terraform configuration provisions the AWS environment for IkiminaPay:
   protection, and enhanced monitoring for a production availability and operations target.
 
 The application connects to PostgreSQL for groups, members, and contributions. Terraform
-stores the RDS connection details in Secrets Manager; the app instance role can read that
-secret, and Ansible writes its values to the protected application environment file.
+stores the RDS connection details in a customer-key-encrypted Secrets Manager secret; the
+app instance role can read that secret, and Ansible writes its values to the protected
+application environment file. Automatic secret rotation is left off for the coursework
+demo; enable and test rotation before production use.
 
 ## Prerequisites
 

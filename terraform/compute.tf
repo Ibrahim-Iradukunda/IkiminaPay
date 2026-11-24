@@ -61,6 +61,25 @@ resource "aws_iam_role_policy" "app_secrets_read" {
   })
 }
 
+resource "aws_iam_role_policy" "app_database_secret_decrypt" {
+  name = "ikiminapay-database-secret-decrypt"
+  role = aws_iam_role.app.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["kms:Decrypt"]
+      Resource = aws_kms_key.rds_performance_insights.arn
+      Condition = {
+        StringEquals = {
+          "kms:ViaService" = "secretsmanager.${var.aws_region}.amazonaws.com"
+        }
+      }
+    }]
+  })
+}
+
 resource "aws_iam_instance_profile" "app" {
   name = "ikiminapay-app-profile"
   role = aws_iam_role.app.name
@@ -125,7 +144,8 @@ resource "aws_instance" "app" {
 
   depends_on = [
     aws_iam_role_policy.app_ecr_read,
-    aws_iam_role_policy.app_secrets_read
+    aws_iam_role_policy.app_secrets_read,
+    aws_iam_role_policy.app_database_secret_decrypt
   ]
 
   metadata_options {
