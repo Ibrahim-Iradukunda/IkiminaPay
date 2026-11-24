@@ -17,8 +17,9 @@ This Terraform configuration provisions the AWS environment for IkiminaPay:
   these exceptions are documented inline for Checkov. Enable Multi-AZ, deletion
   protection, and enhanced monitoring for a production availability and operations target.
 
-The application currently stores group data in a JSON file. RDS is provisioned to satisfy
-the infrastructure requirement, but the application does not connect to it yet.
+The application connects to PostgreSQL for groups, members, and contributions. Terraform
+stores the RDS connection details in Secrets Manager; the app instance role can read that
+secret, and Ansible writes its values to the protected application environment file.
 
 ## Prerequisites
 
@@ -80,9 +81,12 @@ terraform -chdir=terraform output -raw bastion_public_ip
 terraform -chdir=terraform output -raw app_private_ip
 terraform -chdir=terraform output -raw ecr_repository_url
 terraform -chdir=terraform output -raw bastion_security_group_id
+terraform -chdir=terraform output -raw database_secret_id
 ```
 
-The public demo URL is `http://<bastion_public_ip>` after Ansible configures Nginx.
+The public demo URL is `http://<bastion_public_ip>` after Ansible configures Nginx. The
+database secret is scheduled for deletion with a seven-day recovery window when the stack
+is destroyed.
 
 ## Resources
 

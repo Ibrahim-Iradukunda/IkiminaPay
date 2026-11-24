@@ -1,7 +1,20 @@
-# IkiminaPay stores data in a JSON file, so it needs only one service.
-# A database service can be added later on the same network.
-
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-ikiminapay}
+      POSTGRES_USER: ${DB_USER:-ikiminapay}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ikiminapay-local-only}
+    volumes:
+      - ikiminapay-db-data:/var/lib/postgresql/data
+    networks:
+      - ikiminapay-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ikiminapay} -d ${DB_NAME:-ikiminapay}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   app:
     build:
       context: .
@@ -14,18 +27,18 @@ services:
     env_file:
       - .env
     environment:
-      # Keep data out of /app/data, which also holds store.js.
-      # Requires store.js to read process.env.DATA_FILE.
-      DATA_FILE: /app/storage/groups.json
+      DB_HOST: db
+      DB_SSL: "false"
+
+    command: ["sh", "-c", "node data/init-db.js && node server.js"]
+
+    depends_on:
+      db:
+        condition: service_healthy
 
     # Host port : container port. Both follow PORT so they always match.
     ports:
       - "${PORT:-3000}:${PORT:-3000}"
-
-    # Named volume so groups survive `docker compose down`.
-    # The Dockerfile must create /app/storage owned by node.
-    volumes:
-      - ikiminapay-data:/app/storage
 
     networks:
       - ikiminapay-net
@@ -47,7 +60,7 @@ services:
       start_period: 10s
 
 volumes:
-  ikiminapay-data:
+  ikiminapay-db-data:
 
 networks:
   ikiminapay-net:

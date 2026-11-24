@@ -115,3 +115,25 @@ resource "aws_db_instance" "main" {
   }
 }
 
+resource "aws_secretsmanager_secret" "database" {
+  name                    = "ikiminapay/${var.environment}/database"
+  description             = "PostgreSQL credentials for the IkiminaPay ${var.environment} application"
+  recovery_window_in_days = 7
+
+  tags = {
+    Name        = "ikiminapay-database-credentials"
+    Environment = var.environment
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "database" {
+  secret_id = aws_secretsmanager_secret.database.id
+  secret_string = jsonencode({
+    host     = aws_db_instance.main.address
+    port     = aws_db_instance.main.port
+    dbname   = var.database_name
+    username = var.database_username
+    password = var.database_password
+  })
+}
+

@@ -55,7 +55,7 @@ resource "aws_iam_role_policy" "app_secrets_read" {
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = "arn:aws:secretsmanager:eu-north-1:141538081586:secret:ikiminapay/dev/database-EcwQC7"
+        Resource = aws_secretsmanager_secret.database.arn
       }
     ]
   })
@@ -88,7 +88,7 @@ resource "aws_iam_instance_profile" "bastion" {
 
 resource "aws_instance" "bastion" {
   #checkov:skip=CKV_AWS_88:The bastion is intentionally public so operators can SSH and users can reach the demo reverse proxy.
-  ami                         = "ami-060423653522ff830"
+  ami                         = data.aws_ami.amazon_linux.id
   instance_type               = var.bastion_instance_type
   subnet_id                   = aws_subnet.public[0].id
   vpc_security_group_ids      = [aws_security_group.bastion.id]
@@ -114,7 +114,7 @@ resource "aws_instance" "bastion" {
 }
 
 resource "aws_instance" "app" {
-  ami                    = "ami-05f97a99c9ba52d2c"
+  ami                    = data.aws_ami.amazon_linux.id
   instance_type          = var.app_instance_type
   subnet_id              = aws_subnet.private[0].id
   vpc_security_group_ids = [aws_security_group.app.id]
