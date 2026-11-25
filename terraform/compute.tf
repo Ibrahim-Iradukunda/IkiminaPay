@@ -55,28 +55,9 @@ resource "aws_iam_role_policy" "app_secrets_read" {
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = aws_secretsmanager_secret.database.arn
+        Resource = "arn:aws:secretsmanager:eu-north-1:141538081586:secret:ikiminapay/dev/database-EcwQC7"
       }
     ]
-  })
-}
-
-resource "aws_iam_role_policy" "app_database_secret_decrypt" {
-  name = "ikiminapay-database-secret-decrypt"
-  role = aws_iam_role.app.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["kms:Decrypt"]
-      Resource = aws_kms_key.rds_performance_insights.arn
-      Condition = {
-        StringEquals = {
-          "kms:ViaService" = "secretsmanager.${var.aws_region}.amazonaws.com"
-        }
-      }
-    }]
   })
 }
 
@@ -85,35 +66,13 @@ resource "aws_iam_instance_profile" "app" {
   role = aws_iam_role.app.name
 }
 
-resource "aws_iam_role" "bastion" {
-  name = "ikiminapay-bastion-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = "sts:AssumeRole"
-      Principal = {
-        Service = "ec2.amazonaws.com"
-      }
-    }]
-  })
-}
-
-resource "aws_iam_instance_profile" "bastion" {
-  name = "ikiminapay-bastion-profile"
-  role = aws_iam_role.bastion.name
-}
-
 resource "aws_instance" "bastion" {
-  #checkov:skip=CKV_AWS_88:The bastion is intentionally public so operators can SSH and users can reach the demo reverse proxy.
-  ami                         = data.aws_ami.amazon_linux.id
+  ami                         = "ami-060423653522ff830"
   instance_type               = var.bastion_instance_type
   subnet_id                   = aws_subnet.public[0].id
   vpc_security_group_ids      = [aws_security_group.bastion.id]
   associate_public_ip_address = true
   key_name                    = var.key_name
-  iam_instance_profile        = aws_iam_instance_profile.bastion.name
   monitoring                  = true
   ebs_optimized               = true
 
@@ -126,12 +85,6 @@ resource "aws_instance" "bastion" {
     encrypted = true
   }
 
-  # Avoid replacing a running host whenever the latest Amazon Linux AMI changes.
-  # Update the instance deliberately when a base-image refresh is required.
-  lifecycle {
-    ignore_changes = [ami]
-  }
-
   tags = {
     Name        = "ikiminapay-bastion"
     Environment = var.environment
@@ -139,7 +92,7 @@ resource "aws_instance" "bastion" {
 }
 
 resource "aws_instance" "app" {
-  ami                    = data.aws_ami.amazon_linux.id
+  ami                    = "ami-05f97a99c9ba52d2c"
   instance_type          = var.app_instance_type
   subnet_id              = aws_subnet.private[0].id
   vpc_security_group_ids = [aws_security_group.app.id]
@@ -150,8 +103,7 @@ resource "aws_instance" "app" {
 
   depends_on = [
     aws_iam_role_policy.app_ecr_read,
-    aws_iam_role_policy.app_secrets_read,
-    aws_iam_role_policy.app_database_secret_decrypt
+    aws_iam_role_policy.app_secrets_read
   ]
 
   metadata_options {
@@ -161,12 +113,6 @@ resource "aws_instance" "app" {
 
   root_block_device {
     encrypted = true
-  }
-
-  # Avoid replacing a running host whenever the latest Amazon Linux AMI changes.
-  # Update the instance deliberately when a base-image refresh is required.
-  lifecycle {
-    ignore_changes = [ami]
   }
 
   tags = {

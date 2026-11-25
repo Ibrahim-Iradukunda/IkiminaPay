@@ -4,8 +4,6 @@ services:
     container_name: ikiminapay
     env_file:
       - /opt/ikiminapay/.env
-    volumes:
-      - /opt/ikiminapay/certs/{{ aws_region }}-bundle.pem:/app/certs/{{ aws_region }}-bundle.pem:ro
     environment:
       PORT: "{{ app_port | default(3000) }}"
     ports:

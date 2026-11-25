@@ -1,9 +1,9 @@
 
 jest.mock('../data/database', () => ({
-  pool: { query: jest.fn() }
+  query: jest.fn()
 }));
 
-const { pool } = require('../data/database');
+const pool = require('../data/database');
 const { createGroupService, ValidationError } = require('../services/groupService');
 
 describe('PostgreSQL group service', () => {

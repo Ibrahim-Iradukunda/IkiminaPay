@@ -2,12 +2,12 @@ resource "aws_ecr_repository" "app" {
   name                 = "ikiminapay"
   image_tag_mutability = "IMMUTABLE"
 
-  encryption_configuration {
-    encryption_type = "KMS"
-  }
-
   image_scanning_configuration {
     scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "AES256"
   }
 
   tags = {

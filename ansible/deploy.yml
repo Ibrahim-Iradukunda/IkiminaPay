@@ -12,7 +12,6 @@
           - ansible_facts['distribution_major_version'] == '2023'
           - app_image is defined
           - aws_region is defined
-          - database_secret_id is defined
         fail_msg: Set app_image and aws_region and target the Terraform Amazon Linux 2023 instance.
 
     - name: Install Docker, Docker Compose, and AWS CLI
@@ -47,25 +46,9 @@
         path: /opt/ikiminapay
         state: directory
         mode: "0755"
-
-    - name: Create the PostgreSQL CA certificate directory
-      ansible.builtin.file:
-        path: /opt/ikiminapay/certs
-        state: directory
-        owner: root
-        group: root
-        mode: "0755"
-
-    - name: Download the AWS RDS CA bundle for this region
-      ansible.builtin.get_url:
-        url: "https://truststore.pki.rds.amazonaws.com/{{ aws_region }}/{{ aws_region }}-bundle.pem"
-        dest: "/opt/ikiminapay/certs/{{ aws_region }}-bundle.pem"
-        owner: root
-        group: root
-        mode: "0644"
     - name: Retrieve PostgreSQL credentials from AWS Secrets Manager
       ansible.builtin.command:
-        cmd: aws secretsmanager get-secret-value --secret-id {{ database_secret_id }} --region {{ aws_region }} --query SecretString --output text
+        cmd: aws secretsmanager get-secret-value --secret-id ikiminapay/dev/database --region {{ aws_region }} --query SecretString --output text
       register: database_secret_raw
       changed_when: false
       no_log: true
@@ -82,7 +65,6 @@
           DB_NAME={{ database_secret.dbname }}
           DB_USER={{ database_secret.username }}
           DB_PASSWORD={{ database_secret.password }}
-          DB_SSL_CA=/app/certs/{{ aws_region }}-bundle.pem
         owner: root
         group: root
         mode: "0600"
@@ -122,7 +104,13 @@
 
     - name: Initialize PostgreSQL database schema
       ansible.builtin.command:
-        cmd: docker compose exec -T app node data/init-db.js
+        cmd: >-
+          docker compose exec -T app node -e
+          "const fs=require('fs');
+          const pool=require('./data/database');
+          pool.query(fs.readFileSync('./data/schema.sql','utf8'))
+          .then(()=>pool.end())
+          .catch(async e=>{console.error(e.message);await pool.end();process.exit(1)})"
         chdir: /opt/ikiminapay
       register: schema_result
       changed_when: true

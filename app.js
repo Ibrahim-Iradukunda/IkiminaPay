@@ -1,22 +1,13 @@
 const express = require('express');
 const path = require('path');
 const groupRoutes = require('./routes/groups');
-const { checkDatabase } = require('./data/database');
 
 const app = express();
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-
-// Readiness check used by Docker, Ansible and humans: 200 only if PostgreSQL answers.
-app.get('/health', async (_request, response) => {
-  try {
-    await checkDatabase();
-    return response.status(200).json({ status: 'ok', database: 'up' });
-  } catch (error) {
-    console.error('Health check failed:', error.message);
-    return response.status(503).json({ status: 'error', database: 'down' });
-  }
+app.get('/health', (_request, response) => {
+  response.status(200).json({ status: 'ok' });
 });
 app.use('/groups', groupRoutes);
 
