@@ -257,7 +257,7 @@ Attach a least-privilege policy to that role (replace `REGION`, `ACCOUNT_ID` and
         "ecr:PutImage",
         "ecr:UploadLayerPart"
       ],
-      "Resource": "arn:aws:ecr:REGION:ACCOUNT_ID:repository/ikiminapay"
+      "Resource": "arn:aws:ecr:eu-north-1:204957732513:repository/ikiminapay"
     },
     {
       "Effect": "Allow",
@@ -265,7 +265,7 @@ Attach a least-privilege policy to that role (replace `REGION`, `ACCOUNT_ID` and
         "ec2:AuthorizeSecurityGroupIngress",
         "ec2:RevokeSecurityGroupIngress"
       ],
-      "Resource": "arn:aws:ec2:REGION:ACCOUNT_ID:security-group/BASTION_SG_ID"
+      "Resource": "arn:aws:ec2:eu-north-1:204957732513:security-group/sg-0a1a0c3a623e54764"
     }
   ]
 }
@@ -276,7 +276,6 @@ In **Repository Settings → Secrets and variables → Actions**, add these **va
 | Variable | Value |
 |----------|-------|
 | `AWS_REGION` | Same region used by Terraform |
-| `AWS_ROLE_ARN` | ARN of the OIDC role above |
 | `ECR_REPOSITORY_URL` | `terraform output -raw ecr_repository_url` |
 | `BASTION_HOST` | `terraform output -raw bastion_public_ip` |
 | `APP_PRIVATE_IP` | `terraform output -raw app_private_ip` |
