@@ -66,7 +66,8 @@ async function initSchema(db = pool) {
 }
 
 // The pool itself is exported so `require('./data/database').query(...)` keeps
-// working (the Ansible schema task uses it). Helpers are attached as properties.
+// working (data/init-db.js and the Ansible schema task use it).
+// Helpers are attached as properties.
 module.exports = Object.assign(pool, {
   pool,
   buildSslConfig,

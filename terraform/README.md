@@ -9,9 +9,19 @@ This Terraform configuration provisions the AWS environment for IkiminaPay:
 - A private, encrypted PostgreSQL RDS instance.
 - Security groups that restrict SSH, app, and database traffic to their required sources.
 - A private ECR repository and an EC2 instance role limited to pulling its images.
+- The VPC default security group has no ingress or egress rules, and subnets use pinned
+  Availability Zone IDs so adding a new AWS zone cannot silently move resources.
+- PostgreSQL enforces SSL, logs DDL statements and queries taking at least one second.
+  The VPC flow-log group is encrypted with a customer-managed KMS key. The demo uses
+  single-AZ RDS, no deletion protection, and no enhanced monitoring to keep costs down;
+  these exceptions are documented inline for Checkov. Enable Multi-AZ, deletion
+  protection, and enhanced monitoring for a production availability and operations target.
 
-The application currently stores group data in a JSON file. RDS is provisioned to satisfy
-the infrastructure requirement, but the application does not connect to it yet.
+The application connects to PostgreSQL for groups, members, and contributions. Terraform
+stores the RDS connection details in a customer-key-encrypted Secrets Manager secret; the
+app instance role can read that secret, and Ansible writes its values to the protected
+application environment file. Automatic secret rotation is left off for the coursework
+demo; enable and test rotation before production use.
 
 ## Prerequisites
 
@@ -26,7 +36,8 @@ the infrastructure requirement, but the application does not connect to it yet.
 From the repository root, create `terraform/terraform.tfvars` (this file is git-ignored):
 
 ```hcl
-aws_region          = "us-east-1"
+aws_region            = "us-east-1"
+availability_zone_ids = ["use1-az1", "use1-az2"]
 environment         = "dev"
 key_name            = "YOUR_EXISTING_EC2_KEY_PAIR_NAME"
 ssh_allowed_cidr    = "YOUR_PUBLIC_IP/32"
@@ -57,7 +68,12 @@ terraform -chdir=terraform destroy
 ```
 
 Destroying the stack deletes the database without a final snapshot. Back up anything you
-need first.
+need first. The VPC, NAT gateway, RDS instance, and customer-managed KMS key incur
+ongoing charges while the stack is running.
+
+The default `availability_zone_ids` are for `eu-north-1`; when changing regions, set two
+valid AZ IDs for that region. AWS documents AZ IDs as stable physical zone identifiers
+shared across accounts.
 
 ## Outputs
 
@@ -67,9 +83,12 @@ terraform -chdir=terraform output -raw bastion_public_ip
 terraform -chdir=terraform output -raw app_private_ip
 terraform -chdir=terraform output -raw ecr_repository_url
 terraform -chdir=terraform output -raw bastion_security_group_id
+terraform -chdir=terraform output -raw database_secret_id
 ```
 
-The public demo URL is `http://<bastion_public_ip>` after Ansible configures Nginx.
+The public demo URL is `http://<bastion_public_ip>` after Ansible configures Nginx. The
+database secret is scheduled for deletion with a seven-day recovery window when the stack
+is destroyed.
 
 ## Resources
 

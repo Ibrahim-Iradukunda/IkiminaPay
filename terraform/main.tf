@@ -1,12 +1,4 @@
-data "aws_availability_zones" "available" {
-  #checkov:skip=CKV_AWS_394:Zone list is pinned to opt-in-not-required zones for this fixed region.
-  state = "available"
-
-  filter {
-    name   = "opt-in-status"
-    values = ["opt-in-not-required"]
-  }
-}
+data "aws_caller_identity" "current" {}
 
 data "aws_ami" "amazon_linux" {
   most_recent = true

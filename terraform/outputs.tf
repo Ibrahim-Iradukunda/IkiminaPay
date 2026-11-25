@@ -42,3 +42,8 @@ output "database_name" {
   description = "Name of the provisioned PostgreSQL database"
   value       = aws_db_instance.main.db_name
 }
+
+output "database_secret_id" {
+  description = "Secrets Manager name containing the application database credentials"
+  value       = aws_secretsmanager_secret.database.name
+}

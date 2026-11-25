@@ -32,6 +32,17 @@ variable "private_subnet_cidrs" {
   }
 }
 
+variable "availability_zone_ids" {
+  description = "Pinned AWS Availability Zone IDs for the two subnet pairs; override when changing regions"
+  type        = list(string)
+  default     = ["eun1-az1", "eun1-az2"]
+
+  validation {
+    condition     = length(var.availability_zone_ids) == 2 && var.availability_zone_ids[0] != var.availability_zone_ids[1]
+    error_message = "Provide exactly two distinct Availability Zone IDs that exist in aws_region."
+  }
+}
+
 variable "app_port" {
   description = "Port the application listens on"
   type        = number

@@ -1,4 +1,3 @@
-#checkov:skip=CKV2_AWS_11:A CloudWatch flow log is configured below for this VPC.
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
@@ -13,7 +12,7 @@ resource "aws_vpc" "main" {
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   name              = "/aws/vpc/ikiminapay-flow-logs"
   retention_in_days = 365
-  kms_key_id        = aws_kms_key.database.arn
+  kms_key_id        = aws_kms_key.rds_performance_insights.arn
 }
 
 resource "aws_iam_role" "flow_logs" {
@@ -56,7 +55,6 @@ resource "aws_flow_log" "main" {
   iam_role_arn         = aws_iam_role.flow_logs.arn
 }
 
-#checkov:skip=CKV2_AWS_12:The default security group is explicitly restricted to deny all ingress and egress.
 resource "aws_default_security_group" "main" {
   vpc_id = aws_vpc.main.id
 
@@ -77,7 +75,7 @@ resource "aws_subnet" "public" {
   count                   = 2
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidrs[count.index]
-  availability_zone       = data.aws_availability_zones.available.names[count.index]
+  availability_zone_id    = var.availability_zone_ids[count.index]
   map_public_ip_on_launch = false
 
   tags = {
@@ -87,10 +85,10 @@ resource "aws_subnet" "public" {
 }
 
 resource "aws_subnet" "private" {
-  count             = 2
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet_cidrs[count.index]
-  availability_zone = data.aws_availability_zones.available.names[count.index]
+  count                = 2
+  vpc_id               = aws_vpc.main.id
+  cidr_block           = var.private_subnet_cidrs[count.index]
+  availability_zone_id = var.availability_zone_ids[count.index]
 
   tags = {
     Name        = "ikiminapay-private-${count.index + 1}"

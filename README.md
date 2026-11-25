@@ -15,6 +15,7 @@ IkiminaPay gives savings groups one shared digital record of members, contributi
 - **Record contributions:** each member's payment is saved to the group's records.
 - **View balances:** members see their own total and the group balance.
 - **MoMo payment simulation:** a successful simulated payment is saved as a contribution; a failed one changes nothing.
+- **Planned:** user accounts and a real mobile money integration.
 
 One Express app serves both the web page and the REST API. Data is stored in **PostgreSQL** (Amazon RDS in production). This is a demo: there is no login, and no real money is moved.
 
@@ -201,14 +202,14 @@ The NAT gateway, RDS and EC2 instances cost money while they run. `destroy` dele
 
 ## Configuration and deployment (Ansible + CD pipeline)
 
-Deployment is automatic: **every merge to `main`** runs [`.github/workflows/cd.yml`](.github/workflows/cd.yml):
+Deployment is automatic: **when a pull request into `main` is merged**, [`.github/workflows/cd.yml`](.github/workflows/cd.yml) runs (a pull request that is closed without merging deploys nothing):
 
 1. Runs the full CI workflow first; deployment stops if any check fails.
 2. Authenticates to AWS with GitHub OIDC (no long-lived AWS keys in GitHub).
 3. Builds the image and pushes it to ECR tagged with the commit SHA (immutable).
 4. Temporarily allows SSH from the runner's IP on the bastion security group.
 5. Runs [`ansible/deploy.yml`](ansible/deploy.yml) through the bastion:
-   - **App VM:** installs Docker, the Docker Compose plugin and AWS CLI, reads the database credentials from AWS Secrets Manager (`ikiminapay/dev/database`) into a root-only `/opt/ikiminapay/.env`, logs in to ECR, pulls the image, starts it with `docker compose up -d`, creates the tables and waits until `/health` returns 200.
+   - **App VM:** installs Docker, the Docker Compose plugin and AWS CLI, reads the database credentials from AWS Secrets Manager into a root-only `/opt/ikiminapay/.env`, downloads Amazon's RDS CA bundle so the app verifies the database certificate (`DB_SSL_CA`), logs in to ECR, pulls the image, starts it with `docker compose up -d`, creates the tables (`data/init-db.js`) and waits until `/health` returns 200.
    - **Bastion:** installs Nginx and configures it to forward port 80 to the app on port 3000.
 6. Removes the temporary SSH rule, even if a step failed.
 
@@ -216,7 +217,7 @@ To deploy manually, fill in `ansible/inventory.ini` from the Terraform outputs a
 
 ### GitHub Actions deployment setup
 
-Create an IAM OIDC provider for `https://token.actions.githubusercontent.com` if your AWS account does not already have one. Create a role whose trust policy limits OIDC to this repository's `main` branch:
+Create an IAM OIDC provider for `https://token.actions.githubusercontent.com` if your AWS account does not already have one. Create a role whose trust policy limits OIDC to this repository's pull-request workflow subject (the CD jobs run only when a pull request to `main` is closed as merged):
 
 ```json
 {
@@ -228,7 +229,7 @@ Create an IAM OIDC provider for `https://token.actions.githubusercontent.com` if
     "Condition": {
       "StringEquals": {
         "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-        "token.actions.githubusercontent.com:sub": "repo:Ibrahim-Iradukunda/IkiminaPay:ref:refs/heads/main"
+        "token.actions.githubusercontent.com:sub": "repo:Ibrahim-Iradukunda/IkiminaPay:pull_request"
       }
     }
   }]
@@ -280,6 +281,8 @@ In **Repository Settings → Secrets and variables → Actions**, add these **va
 | `BASTION_HOST` | `terraform output -raw bastion_public_ip` |
 | `APP_PRIVATE_IP` | `terraform output -raw app_private_ip` |
 | `BASTION_SECURITY_GROUP_ID` | `terraform output -raw bastion_security_group_id` |
+| `DATABASE_SECRET_ID` | Name or ARN of the Secrets Manager secret holding the database credentials |
+| `DATABASE_SECRET_ID` | `terraform output -raw database_secret_id` |
 
 And these **secrets**:
 
@@ -379,6 +382,7 @@ Errors are returned as `{ "error": "..." }`.
 │   └── groupController.js      # Handles requests for group endpoints
 ├── data/
 │   ├── database.js             # PostgreSQL pool, SSL settings, health and schema helpers
+│   ├── init-db.js              # Applies the schema (used by the Ansible deployment)
 │   └── schema.sql              # Tables (CREATE TABLE IF NOT EXISTS), run at startup
 ├── public/                     # Web page served by Express
 │   ├── index.html

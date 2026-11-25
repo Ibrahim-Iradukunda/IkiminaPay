@@ -55,9 +55,28 @@ resource "aws_iam_role_policy" "app_secrets_read" {
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = "arn:aws:secretsmanager:eu-north-1:141538081586:secret:ikiminapay/dev/database-EcwQC7"
+        Resource = aws_secretsmanager_secret.database.arn
       }
     ]
+  })
+}
+
+resource "aws_iam_role_policy" "app_database_secret_decrypt" {
+  name = "ikiminapay-database-secret-decrypt"
+  role = aws_iam_role.app.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["kms:Decrypt"]
+      Resource = aws_kms_key.rds_performance_insights.arn
+      Condition = {
+        StringEquals = {
+          "kms:ViaService" = "secretsmanager.${var.aws_region}.amazonaws.com"
+        }
+      }
+    }]
   })
 }
 
@@ -87,8 +106,8 @@ resource "aws_iam_instance_profile" "bastion" {
 }
 
 resource "aws_instance" "bastion" {
-  #checkov:skip=CKV_AWS_88:The demo bastion requires a public IP behind its restricted security group.
-  ami                         = "ami-060423653522ff830"
+  #checkov:skip=CKV_AWS_88:The bastion is intentionally public so operators can SSH and users can reach the demo reverse proxy.
+  ami                         = data.aws_ami.amazon_linux.id
   instance_type               = var.bastion_instance_type
   subnet_id                   = aws_subnet.public[0].id
   vpc_security_group_ids      = [aws_security_group.bastion.id]
@@ -114,7 +133,7 @@ resource "aws_instance" "bastion" {
 }
 
 resource "aws_instance" "app" {
-  ami                    = "ami-05f97a99c9ba52d2c"
+  ami                    = data.aws_ami.amazon_linux.id
   instance_type          = var.app_instance_type
   subnet_id              = aws_subnet.private[0].id
   vpc_security_group_ids = [aws_security_group.app.id]
@@ -125,7 +144,8 @@ resource "aws_instance" "app" {
 
   depends_on = [
     aws_iam_role_policy.app_ecr_read,
-    aws_iam_role_policy.app_secrets_read
+    aws_iam_role_policy.app_secrets_read,
+    aws_iam_role_policy.app_database_secret_decrypt
   ]
 
   metadata_options {

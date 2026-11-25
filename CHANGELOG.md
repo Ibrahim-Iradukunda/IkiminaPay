@@ -21,7 +21,7 @@ Each section is one stage of the course project.
   from the bastion to the app, PostgreSQL only from the app.
 - Private Amazon ECR repository (immutable tags, scan on push) and an IAM instance role
   so the app VM can pull images without AWS keys.
-- CD pipeline (`cd.yml`): on every merge to `main` it runs CI, pushes a commit-tagged image
+- CD pipeline (`cd.yml`): when a pull request into `main` is merged, it runs CI, pushes a commit-tagged image
   to ECR using AWS OIDC, and deploys it with Ansible through the bastion.
 - `/health` checks the database with `SELECT 1`: HTTP 200 when it is up, 503 when it is down.
 - Jest tests for both `/health` cases and for the database configuration helpers.
