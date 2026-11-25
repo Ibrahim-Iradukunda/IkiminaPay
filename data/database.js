@@ -3,10 +3,15 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-const caPath = process.env.DB_SSL_CA ||
-  path.join(__dirname, '../certs/eu-north-1-bundle.pem');
-
-const ca = fs.readFileSync(caPath, 'utf8');
+const ssl = process.env.DB_SSL?.toLowerCase() === 'false'
+  ? false
+  : {
+      ca: fs.readFileSync(
+        process.env.DB_SSL_CA || path.join(__dirname, '../certs/eu-north-1-bundle.pem'),
+        'utf8'
+      ),
+      rejectUnauthorized: true
+    };
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -14,10 +19,7 @@ const pool = new Pool({
   database: process.env.DB_NAME,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
-  ssl: {
-    ca,
-    rejectUnauthorized: true
-  },
+  ssl,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000

@@ -21,7 +21,7 @@ IkiminaPay gives savings groups one shared digital record of members, contributi
 
 IkiminaPay is a simple savings group tracker. A treasurer creates a group, adds members and records each contribution. Members can then see their own total and the group's balance.
 
-The app is intentionally small. One Express app serves both the web page and the REST API, and group data is saved to a JSON file. The mobile money action is a local simulation: a successful attempt is saved as a contribution, and a failed attempt does not change the balance.
+The app is intentionally small. One Express app serves both the web page and the REST API, and group, member, and contribution records are stored in PostgreSQL. The mobile money action is a local simulation: a successful attempt is saved as a contribution, and a failed attempt does not change the balance.
 
 The app is containerized with Docker and runs with a single `docker compose up` command. GitHub Actions runs lint, tests, dependency checks, container scanning, and Terraform scanning. A merge to `main` builds and publishes the image to ECR and deploys it to the private EC2 instance using Ansible. This is a demo: there is no login, and no real money is moved.
 
@@ -38,8 +38,8 @@ The app is containerized with Docker and runs with a single `docker compose up` 
 - **Record contributions:** each member's payment is saved to the group's records.
 - **View balances:** members see their own total and the group balance.
 - **MoMo payment simulation:** a successful simulated payment is saved as a contribution; a failed one changes nothing.
-- **Infrastructure provisioned:** a private PostgreSQL RDS instance. The app does not connect to it yet; app data remains in its persistent JSON volume.
-- **Planned:** database integration, user accounts and a real mobile money integration.
+- **Database:** the API stores group, member, and contribution records in private PostgreSQL RDS in production.
+- **Planned:** user accounts and a real mobile money integration.
 
 ## Technology Stack
 
@@ -47,7 +47,7 @@ The app is containerized with Docker and runs with a single `docker compose up` 
 |------|---------|
 | Backend | Node.js, Express |
 | Frontend | HTML, CSS, JavaScript (served by the same Express app) |
-| Database | JSON file (RDS PostgreSQL provisioned but not yet integrated) |
+| Database | PostgreSQL (managed RDS in production) |
 | Testing and linting | Jest, ESLint |
 | Containers | Docker (`node:22-bookworm-slim`, non-root user), Docker Compose |
 | Cloud | AWS VPC, EC2, RDS PostgreSQL, ECR, NAT gateway |
@@ -100,11 +100,12 @@ What the Compose setup does:
 
 | Setting | Purpose |
 |---------|---------|
-| One `app` service | Built from the `Dockerfile`. IkiminaPay stores data in a JSON file, so it needs no database service. |
-| `ikiminapay-data` volume | Mounted at `/app/storage`, so groups are kept when the container is restarted or recreated |
-| `ikiminapay-net` network | A private bridge network, ready for more services (such as a database) later |
+| `app` service | Built from the `Dockerfile`; initializes the schema and serves the API and web page. |
+| `db` service | Local PostgreSQL 16 instance used by the API. |
+| `ikiminapay-db-data` volume | Keeps local PostgreSQL data when containers are restarted or recreated. |
+| `ikiminapay-net` network | Private bridge network connecting the app and database. |
 | `env_file: .env` | Passes your settings into the container. `.env` is never copied into the image. |
-| Health check | Calls `http://localhost:3000/` inside the container every 30 seconds |
+| Health check | Calls `http://localhost:3000/` inside the app container every 30 seconds |
 | `restart: unless-stopped` | Restarts the app if it crashes, but not after you stop it |
 
 ### Run without Docker
@@ -114,14 +115,17 @@ npm install
 npm start
 ```
 
-Open http://localhost:3000. Data is saved to `data/groups.json`, which Git ignores.
+Open http://localhost:3000. Set up a local PostgreSQL instance and configure the `DB_*`
+values in `.env` before running `npm start`; for local development, set `DB_SSL=false`.
 
 ### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PORT` | Port the app listens on (inside the container and on your computer) | `3000` |
-| `DATA_FILE` | Where group data is saved. Docker Compose sets it to `/app/storage/groups.json`. | `data/groups.json` |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | PostgreSQL connection settings. Compose defaults to its `db` service. | See `.env.example` |
+| `DB_SSL` | Set to `false` for the local Compose database; production uses verified TLS with `DB_SSL_CA`. | `false` locally |
+| `DB_SSL_CA` | Path to the trusted RDS CA bundle when TLS is enabled. | Required for production |
 
 Never commit your `.env` file. It is listed in `.gitignore` and `.dockerignore`.
 
@@ -180,7 +184,7 @@ flowchart LR
     Runner -->|OIDC + push| ECR[(Private ECR)]
     Bastion -->|SSH ProxyJump / HTTP :3000| App[Private EC2 app]
     App -->|ECR pull via instance role| ECR
-    App -. "not connected by app yet" .-> RDS[(Private PostgreSQL RDS)]
+    App -->|TLS :5432| RDS[(Private PostgreSQL RDS)]
     subgraph VPC[AWS VPC]
       Bastion
       App
@@ -291,6 +295,7 @@ variables:
 | `BASTION_HOST` | `terraform output -raw bastion_public_ip` |
 | `APP_PRIVATE_IP` | `terraform output -raw app_private_ip` |
 | `BASTION_SECURITY_GROUP_ID` | `terraform output -raw bastion_security_group_id` |
+| `DATABASE_SECRET_ID` | `terraform output -raw database_secret_id` |
 
 Add these repository **secrets**:
 
@@ -318,7 +323,9 @@ known-hosts entry for the app before production use.
 ├── controllers/
 │   └── groupController.js      # Handles requests for group endpoints
 ├── data/
-│   └── store.js                # Reads and writes group data (JSON file)
+│   ├── database.js             # PostgreSQL connection pool with verified TLS
+│   ├── init-db.js              # Applies the idempotent SQL schema
+│   └── schema.sql              # PostgreSQL tables and indexes
 ├── public/                     # Web page served by Express
 │   ├── index.html
 │   ├── app.js

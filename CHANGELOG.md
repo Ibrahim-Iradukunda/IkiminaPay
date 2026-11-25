@@ -11,7 +11,8 @@
   reporting; added a `main`-branch CD workflow that uses AWS OIDC and deploys an
   immutable commit-tagged image.
 - Added `/health` readiness response, operator setup instructions, and this changelog.
-- RDS is provisioned but the application still stores data in its JSON volume.
+- Connected the app's group, member, and contribution workflows to PostgreSQL and
+  provisioned the database credentials in AWS Secrets Manager for Ansible deployment.
 - Live cloud resources and a production URL must be created/configured by the operator;
   they are not provisioned by this repository change.
 
