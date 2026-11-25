@@ -1,22 +1,19 @@
 name: Deploy to Production
 
 on:
-  pull_request:
+  push:
     branches: [main]
-    types: [closed]
 
 permissions:
   contents: read
 
 jobs:
   ci:
-    if: github.event.pull_request.merged == true
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
 
   deploy:
-    if: github.event.pull_request.merged == true
     needs: ci
     runs-on: ubuntu-latest
     permissions:
@@ -28,40 +25,17 @@ jobs:
       BASTION_HOST: ${{ vars.BASTION_HOST }}
       APP_PRIVATE_IP: ${{ vars.APP_PRIVATE_IP }}
       BASTION_SECURITY_GROUP_ID: ${{ vars.BASTION_SECURITY_GROUP_ID }}
-      DATABASE_SECRET_ID: ${{ vars.DATABASE_SECRET_ID }}
     steps:
       - name: Check out source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Install Ansible
         run: python -m pip install "ansible-core>=2.16,<3"
-
-      - name: Validate deployment settings
-        env:
-          AWS_REGION: ${{ vars.AWS_REGION }}
-          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
-          ECR_REPOSITORY_URL: ${{ vars.ECR_REPOSITORY_URL }}
-          BASTION_HOST: ${{ vars.BASTION_HOST }}
-          APP_PRIVATE_IP: ${{ vars.APP_PRIVATE_IP }}
-          BASTION_SECURITY_GROUP_ID: ${{ vars.BASTION_SECURITY_GROUP_ID }}
-          DATABASE_SECRET_ID: ${{ vars.DATABASE_SECRET_ID }}
-          BASTION_SSH_PRIVATE_KEY: ${{ secrets.BASTION_SSH_PRIVATE_KEY }}
-          BASTION_SSH_KNOWN_HOSTS: ${{ secrets.BASTION_SSH_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          for name in AWS_REGION AWS_ROLE_ARN ECR_REPOSITORY_URL BASTION_HOST \
-            APP_PRIVATE_IP BASTION_SECURITY_GROUP_ID DATABASE_SECRET_ID \
-            BASTION_SSH_PRIVATE_KEY BASTION_SSH_KNOWN_HOSTS; do
-            if [[ -z "${!name}" ]]; then
-              echo "::error::Required GitHub Actions variable/secret $name is not configured. See the README deployment setup."
-              exit 1
-            fi
-          done
 
       - name: Authenticate to AWS with GitHub OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -141,7 +115,7 @@ jobs:
           ansible-playbook \
             --inventory "$RUNNER_TEMP/inventory.ini" \
             ansible/deploy.yml \
-            --extra-vars "aws_region=$AWS_REGION app_image=$ECR_REPOSITORY_URL:$IMAGE_TAG app_private_ip=$APP_PRIVATE_IP app_port=3000 database_secret_id=$DATABASE_SECRET_ID"
+            --extra-vars "aws_region=$AWS_REGION app_image=$ECR_REPOSITORY_URL:$IMAGE_TAG app_private_ip=$APP_PRIVATE_IP app_port=3000"
 
       - name: Revoke temporary SSH access
         if: ${{ always() && steps.runner-ip.outputs.ip != '' }}

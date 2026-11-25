@@ -13,20 +13,20 @@ COPY package.json package-lock.json ./
 
 # Install only runtime dependencies; the app does not need Jest to run.
 RUN npm ci --omit=dev && npm cache clean --force
-
-# Trivy found 10 HIGH vulnerabilities in the npm bundled with the base image.
-# npm ci has already installed the required packages, so removing npm is safe.
-# The application only needs Node.js to run.
 RUN rm -rf /usr/local/lib/node_modules/npm \
 /usr/local/lib/node_modules/corepack \
-/usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /opt/yarn-v1.22.22 \
+/usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /opt/yarn-* \
 /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
 
 # Copy the app with ownership assigned to the unprivileged runtime account.
 COPY --chown=node:node . .
 
 # Document the HTTP port used by the Express server.
 EXPOSE 3000
+
+# Create the data folder for the Compose volume, owned by the runtime account.
+RUN mkdir -p /app/storage && chown node:node /app/storage
 
 # Run the application as the non-root user provided by the Node image.
 USER node

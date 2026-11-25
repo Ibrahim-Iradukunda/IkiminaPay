@@ -1,6 +1,6 @@
 
 const crypto = require('crypto');
-const { pool } = require('../data/database');
+const pool = require('../data/database');
 
 class ValidationError extends Error {
   constructor(message, statusCode = 400) {
