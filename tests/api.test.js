@@ -8,7 +8,12 @@ jest.mock('../services/groupService', () => ({
   }))
 }));
 
+jest.mock('../data/database', () => ({
+  checkDatabase: jest.fn()
+}));
+
 const { createGroupService } = require('../services/groupService');
+const { checkDatabase } = require('../data/database');
 const app = require('../app');
 
 describe('groups API', () => {
@@ -42,11 +47,25 @@ describe('groups API', () => {
     });
   }
 
-  test('returns a healthy status for the readiness check', async () => {
+  test('health returns 200 when the database is up', async () => {
+    checkDatabase.mockResolvedValue();
+
     const response = await fetch(`${baseUrl}/health`);
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ status: 'ok' });
+    expect(await response.json()).toEqual({ status: 'ok', database: 'up' });
+    expect(checkDatabase).toHaveBeenCalledTimes(1);
+  });
+
+  test('health returns 503 when the database is down', async () => {
+    const errorLogger = jest.spyOn(console, 'error').mockImplementation(() => {});
+    checkDatabase.mockRejectedValue(new Error('connect ECONNREFUSED'));
+
+    const response = await fetch(`${baseUrl}/health`);
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ status: 'error', database: 'down' });
+    expect(errorLogger).toHaveBeenCalled();
   });
 
   test('creates a group, adds a member, records a contribution, and reads the summary', async () => {
