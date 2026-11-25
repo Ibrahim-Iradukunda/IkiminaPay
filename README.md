@@ -43,7 +43,7 @@ One Express app serves both the web page and the REST API. Data is stored in **P
 | Containers | Docker (`node:22-bookworm-slim`, runs as non-root user `node`), Docker Compose |
 | Cloud | AWS VPC, EC2 (Amazon Linux 2023), RDS PostgreSQL, ECR, NAT gateway |
 | Infrastructure as Code | Terraform |
-| Configuration and deployment | Ansible, GitHub Actions, AWS OIDC |
+| Configuration and deployment | Ansible, GitHub Actions, dedicated AWS IAM deployment user |
 | Security scans | npm audit, Trivy (image and IaC), Checkov |
 
 ## Architecture
@@ -66,7 +66,7 @@ flowchart TB
             igw["Internet gateway"]
 
             subgraph PUB["Public subnets 10.0.1.0/24, 10.0.2.0/24"]
-                bastion["Bastion EC2 + Nginx reverse proxy<br/>SG: 80 from 0.0.0.0/0<br/>SG: 22 from ssh_allowed_cidr only"]
+                bastion["Bastion EC2 + Nginx reverse proxy<br/>Ingress: 80 public; 22 from trusted IP or temporary runner IP<br/>Egress: 443 for package downloads"]
                 nat["NAT gateway"]
             end
 
@@ -86,7 +86,7 @@ flowchart TB
     cd -->|"SSH :22 (runner IP, temporary rule)"| bastion
     bastion -->|"SSH :22 (ProxyJump)"| app
 
-    cd -->|"docker push (OIDC)"| ecr
+    cd -->|"docker push (deployment IAM user)"| ecr
     app -->|"outbound only"| nat
     nat --> igw
     app -.->|"docker pull via NAT (IAM instance role)"| ecr
@@ -97,13 +97,15 @@ How to read it:
 - **Public traffic:** users open the public URL (the bastion's public IP on port 80). Nginx on the bastion forwards the request to the app on port 3000 in the private subnet.
 - **Admin traffic:** SSH is only allowed into the bastion, and only from one trusted IP (`ssh_allowed_cidr`) or, during a deployment, the GitHub runner's IP for a few minutes. The app VM accepts SSH only from the bastion (ProxyJump).
 - **Database:** RDS sits in the private subnets and only accepts connections on 5432 from the app's security group.
-- **Images:** CI/CD pushes the image to ECR; the app VM pulls it through the NAT gateway using its IAM instance role (no AWS keys on the server).
+- **Images:** GitHub Actions pushes the image to ECR using the dedicated deployment IAM user's GitHub Actions secrets. The app VM pulls it through the NAT gateway using its instance role (no AWS keys on the server).
 
 ## Live URL
 
-**Live application:** http://13.48.177.237
+**Live application:** http://16.171.116.2
 
-Health check: `http://13.48.177.237/health`
+Health check: `http://16.171.116.2/health`
+
+This address matches the current `terraform output -raw bastion_public_ip`. If the bastion is replaced, update the URL from the new Terraform output.
 
 ## Run locally
 
@@ -205,71 +207,25 @@ The NAT gateway, RDS and EC2 instances cost money while they run. `destroy` dele
 Deployment is automatic: **when a pull request into `main` is merged**, [`.github/workflows/cd.yml`](.github/workflows/cd.yml) runs (a pull request that is closed without merging deploys nothing):
 
 1. Runs the full CI workflow first; deployment stops if any check fails.
-2. Authenticates to AWS with GitHub OIDC (no long-lived AWS keys in GitHub).
+2. Authenticates to AWS using the dedicated deployment IAM user's `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` GitHub Actions secrets.
 3. Builds the image and pushes it to ECR tagged with the commit SHA (immutable).
 4. Temporarily allows SSH from the runner's IP on the bastion security group.
 5. Runs [`ansible/deploy.yml`](ansible/deploy.yml) through the bastion:
    - **App VM:** installs Docker, the Docker Compose plugin and AWS CLI, reads the database credentials from AWS Secrets Manager into a root-only `/opt/ikiminapay/.env`, downloads Amazon's RDS CA bundle so the app verifies the database certificate (`DB_SSL_CA`), logs in to ECR, pulls the image, starts it with `docker compose up -d`, creates the tables (`data/init-db.js`) and waits until `/health` returns 200.
    - **Bastion:** installs Nginx and configures it to forward port 80 to the app on port 3000.
-6. Removes the temporary SSH rule, even if a step failed.
+6. Removes the temporary SSH rule, even if a step failed. The bastion also has outbound TCP 443 for Amazon Linux package downloads.
 
 To deploy manually, fill in `ansible/inventory.ini` from the Terraform outputs and follow [`ansible/README.md`](ansible/README.md).
 
 ### GitHub Actions deployment setup
 
-Create an IAM OIDC provider for `https://token.actions.githubusercontent.com` if your AWS account does not already have one. Create a role whose trust policy limits OIDC to this repository's pull-request workflow subject (the CD jobs run only when a pull request to `main` is closed as merged):
+The current workflow uses a dedicated, least-privilege IAM deployment user with an access key stored in GitHub Actions secrets. Its policy needs ECR push/describe access for the `ikiminapay` repository and permission to add and remove temporary SSH ingress on the bastion security group. The app EC2 instance uses its instance role to pull from ECR and read the database secret. Rotate the deployment access key if it is exposed or replaced.
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Principal": { "Federated": "arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com" },
-    "Action": "sts:AssumeRoleWithWebIdentity",
-    "Condition": {
-      "StringEquals": {
-        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-        "token.actions.githubusercontent.com:sub": "repo:Ibrahim-Iradukunda/IkiminaPay:pull_request"
-      }
-    }
-  }]
-}
-```
+Grant the deployment user only these actions:
 
-Attach a least-privilege policy to that role (replace `REGION`, `ACCOUNT_ID` and `BASTION_SG_ID`):
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "ecr:GetAuthorizationToken",
-      "Resource": "*"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ecr:BatchCheckLayerAvailability",
-        "ecr:CompleteLayerUpload",
-        "ecr:DescribeImages",
-        "ecr:InitiateLayerUpload",
-        "ecr:PutImage",
-        "ecr:UploadLayerPart"
-      ],
-      "Resource": "arn:aws:ecr:eu-north-1:204957732513:repository/ikiminapay"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ec2:AuthorizeSecurityGroupIngress",
-        "ec2:RevokeSecurityGroupIngress"
-      ],
-      "Resource": "arn:aws:ec2:eu-north-1:204957732513:security-group/sg-0a1a0c3a623e54764"
-    }
-  ]
-}
-```
+- `ecr:GetAuthorizationToken` on `*`.
+- `ecr:BatchCheckLayerAvailability`, `ecr:BatchGetImage`, `ecr:CompleteLayerUpload`, `ecr:DescribeImages`, `ecr:InitiateLayerUpload`, `ecr:PutImage` and `ecr:UploadLayerPart` on `arn:aws:ecr:<region>:<account-id>:repository/ikiminapay`.
+- `ec2:AuthorizeSecurityGroupIngress` and `ec2:RevokeSecurityGroupIngress` on the bastion security group ARN.
 
 In **Repository Settings → Secrets and variables → Actions**, add these **variables**:
 
@@ -280,13 +236,14 @@ In **Repository Settings → Secrets and variables → Actions**, add these **va
 | `BASTION_HOST` | `terraform output -raw bastion_public_ip` |
 | `APP_PRIVATE_IP` | `terraform output -raw app_private_ip` |
 | `BASTION_SECURITY_GROUP_ID` | `terraform output -raw bastion_security_group_id` |
-| `DATABASE_SECRET_ID` | Name or ARN of the Secrets Manager secret holding the database credentials |
-| `DATABASE_SECRET_ID` | `terraform output -raw database_secret_id` |
+| `DATABASE_SECRET_ID` | `terraform output -raw database_secret_id` (Secrets Manager secret containing database credentials) |
 
 And these **secrets**:
 
 | Secret | Value |
 |--------|-------|
+| `AWS_ACCESS_KEY_ID` | Access key ID for the dedicated deployment IAM user |
+| `AWS_SECRET_ACCESS_KEY` | Secret access key for that user; never commit or paste it into the repository |
 | `BASTION_SSH_PRIVATE_KEY` | Contents of the EC2 key pair's private key file. Never commit it. |
 | `BASTION_SSH_KNOWN_HOSTS` | Verified host-key lines for the bastion (`ssh-keyscan -H <bastion-ip>`); check the fingerprint against AWS first. |
 
@@ -302,7 +259,7 @@ And these **secrets**:
 | `build-and-test` | `docker build` | The image does not build |
 | `build-and-test` | Trivy image scan | HIGH or CRITICAL fixable vulnerabilities in the image |
 | `terraform-scan` | Trivy config scan of `terraform/` | HIGH or CRITICAL misconfigurations |
-| `terraform-scan` | Checkov | Reports extra findings only (soft fail) |
+| `terraform-scan` | Checkov | Fails the scan job when a policy check fails |
 
 Branch protection on `main` requires a pull request with at least one approval from someone other than the author, up-to-date branches, resolved conversations, and passing `build-and-test` and `terraform-scan` checks.
 
@@ -319,7 +276,7 @@ Branch protection on `main` requires a pull request with at least one approval f
 
 ```bash
 curl -i http://localhost:3000/health
-curl -i http://13.48.177.237/health
+curl -i http://16.171.116.2/health
 ```
 
 How to read it:
