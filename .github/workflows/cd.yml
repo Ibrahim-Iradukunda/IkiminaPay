@@ -21,7 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       ECR_REPOSITORY_URL: ${{ vars.ECR_REPOSITORY_URL }}
@@ -44,7 +43,8 @@ jobs:
       - name: Validate deployment settings
         env:
           AWS_REGION: ${{ vars.AWS_REGION }}
-          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           ECR_REPOSITORY_URL: ${{ vars.ECR_REPOSITORY_URL }}
           BASTION_HOST: ${{ vars.BASTION_HOST }}
           APP_PRIVATE_IP: ${{ vars.APP_PRIVATE_IP }}
@@ -54,7 +54,8 @@ jobs:
           BASTION_SSH_KNOWN_HOSTS: ${{ secrets.BASTION_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          for name in AWS_REGION AWS_ROLE_ARN ECR_REPOSITORY_URL BASTION_HOST \
+          for name in AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY \
+            ECR_REPOSITORY_URL BASTION_HOST \
             APP_PRIVATE_IP BASTION_SECURITY_GROUP_ID DATABASE_SECRET_ID \
             BASTION_SSH_PRIVATE_KEY BASTION_SSH_KNOWN_HOSTS; do
             if [[ -z "${!name}" ]]; then
@@ -63,10 +64,11 @@ jobs:
             fi
           done
 
-      - name: Authenticate to AWS with GitHub OIDC
+      - name: Authenticate to AWS with deployment user credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Log in to Amazon ECR

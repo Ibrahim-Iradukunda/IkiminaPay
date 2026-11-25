@@ -51,7 +51,7 @@ The app is containerized with Docker and runs with a single `docker compose up` 
 | Testing and linting | Jest, ESLint |
 | Containers | Docker (`node:22-bookworm-slim`, non-root user), Docker Compose |
 | Cloud | AWS VPC, EC2, RDS PostgreSQL, ECR, NAT gateway |
-| Configuration and deployment | Ansible, GitHub Actions, AWS OIDC |
+| Configuration and deployment | Ansible, GitHub Actions, dedicated IAM deployment user |
 | CI/CD | GitHub Actions: lint, tests, npm audit, Trivy, Checkov, ECR publish, Ansible deploy |
 | Other | dotenv, Git and GitHub (Projects, branch protection, pull requests) |
 
@@ -181,7 +181,7 @@ Set the `build-and-test` and `terraform-scan` checks as required in branch prote
 flowchart LR
     User[Public browser] -->|HTTP :80| Bastion[Bastion / Nginx reverse proxy]
     Runner[GitHub Actions] -->|Temporary IP-scoped SSH| Bastion
-    Runner -->|OIDC + push| ECR[(Private ECR)]
+    Runner -->|IAM user credentials + push| ECR[(Private ECR)]
     Bastion -->|SSH ProxyJump / HTTP :3000| App[Private EC2 app]
     App -->|ECR pull via instance role| ECR
     App -->|TLS :5432| RDS[(Private PostgreSQL RDS)]
@@ -209,7 +209,8 @@ ongoing AWS charges.
    password of at least 16 characters. See [`terraform/README.md`](terraform/README.md).
 3. Run `terraform -chdir=terraform init`, `validate`, `plan`, review the costs, then
    `apply`. Do not apply until you are ready to incur AWS charges.
-4. Configure the GitHub Actions AWS OIDC role and repository variables/secrets below.
+4. Configure the dedicated AWS deployment IAM user and GitHub repository
+   variables/secrets below.
 5. On the first merge to `main`, the CD workflow publishes and deploys the app. The demo
    URL is `http://<bastion_public_ip>` from `terraform output`.
 6. To deploy manually, populate `ansible/inventory.ini` and follow
@@ -220,36 +221,16 @@ the first successful CD run, replace this line with `http://<bastion_public_ip>`
 
 ### GitHub Actions deployment setup
 
-Create an IAM OIDC provider for `https://token.actions.githubusercontent.com` if your
-AWS account does not already have one. Create a role whose trust policy limits OIDC to
-this repository's pull-request workflow subject. The CD workflow runs its deployment
-jobs only when a pull request to `main` is closed as merged:
+This coursework account does not expose IAM OIDC identity providers, so the workflow
+uses a dedicated IAM user access key. This is less secure than short-lived OIDC
+credentials: create a user only for this deployment, do not enable console access, and
+revoke or rotate its access key when it is no longer needed. The CD workflow runs its
+deployment jobs only when a pull request to `main` is closed as merged.
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Principal": { "Federated": "arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com" },
-    "Action": "sts:AssumeRoleWithWebIdentity",
-    "Condition": {
-      "StringEquals": {
-        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-        "token.actions.githubusercontent.com:sub": "repo:Ibrahim-Iradukunda/IkiminaPay:pull_request"
-      }
-    }
-  }]
-}
-```
-
-Attach a least-privilege policy to that role: allow ECR image push actions on the
-`ikiminapay` repository, `ecr:GetAuthorizationToken` on `*`, and
-`ec2:AuthorizeSecurityGroupIngress` / `ec2:RevokeSecurityGroupIngress` only on the
-Terraform-created bastion security group. The workflow briefly adds its runner's `/32`
-address to that group for Ansible SSH and removes it afterward.
-
-For the permissions policy, replace `REGION`, `ACCOUNT_ID`, and `BASTION_SG_ID` with
-your AWS values:
+In **IAM → Users**, create a dedicated deployment user without console access. Create
+and attach the following custom policy to that user. The workflow briefly adds the
+GitHub runner's `/32` address to the bastion security group for Ansible SSH, then
+removes it.
 
 ```json
 {
@@ -270,7 +251,7 @@ your AWS values:
         "ecr:PutImage",
         "ecr:UploadLayerPart"
       ],
-      "Resource": "arn:aws:ecr:REGION:ACCOUNT_ID:repository/ikiminapay"
+      "Resource": "arn:aws:ecr:eu-north-1:204957732513:repository/ikiminapay"
     },
     {
       "Effect": "Allow",
@@ -278,7 +259,7 @@ your AWS values:
         "ec2:AuthorizeSecurityGroupIngress",
         "ec2:RevokeSecurityGroupIngress"
       ],
-      "Resource": "arn:aws:ec2:REGION:ACCOUNT_ID:security-group/BASTION_SG_ID"
+      "Resource": "arn:aws:ec2:eu-north-1:204957732513:security-group/sg-0a1a0c3a623e54764"
     }
   ]
 }
@@ -290,7 +271,6 @@ variables:
 | Variable | Value |
 |----------|-------|
 | `AWS_REGION` | Same region used by Terraform |
-| `AWS_ROLE_ARN` | ARN of the OIDC role above |
 | `ECR_REPOSITORY_URL` | `terraform output -raw ecr_repository_url` |
 | `BASTION_HOST` | `terraform output -raw bastion_public_ip` |
 | `APP_PRIVATE_IP` | `terraform output -raw app_private_ip` |
@@ -301,8 +281,16 @@ Add these repository **secrets**:
 
 | Secret | Value |
 |--------|-------|
+| `AWS_ACCESS_KEY_ID` | Access key ID for the dedicated deployment user. |
+| `AWS_SECRET_ACCESS_KEY` | Secret access key for that user; shown only when created. Never commit or paste it into a tracked file. |
 | `BASTION_SSH_PRIVATE_KEY` | Contents of the EC2 key pair's private key file. Never commit or paste it into a tracked file. |
 | `BASTION_SSH_KNOWN_HOSTS` | Verified SSH host-key lines for the bastion IP (`ssh-keyscan -H <bastion-ip>`); verify its fingerprint against AWS before saving. |
+
+After creating the user and attaching the policy, open its **Security credentials** tab
+and create an access key for an application running outside AWS. Copy the access key ID
+and secret access key when AWS displays them, then save them as the two GitHub secrets
+above. AWS shows the secret access key only once. Do not paste either key into chat or
+commit them to the repository.
 
 The workflow accepts the private app host key on first connection because it is only
 reachable through the verified bastion. Use managed host certificates or a pre-populated

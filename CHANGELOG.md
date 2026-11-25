@@ -8,8 +8,8 @@
 - Added Ansible configuration for Docker, Docker Compose, ECR image deployment, and
   Nginx reverse proxy setup on the bastion.
 - Extended CI with Trivy container and Terraform scans and supplemental Checkov
-  reporting; added a `main`-branch CD workflow that uses AWS OIDC and deploys an
-  immutable commit-tagged image.
+  reporting; added a `main`-branch CD workflow that deploys an immutable commit-tagged
+  image using a dedicated AWS deployment user's credentials.
 - Added `/health` readiness response, operator setup instructions, and this changelog.
 - Connected the app's group, member, and contribution workflows to PostgreSQL and
   provisioned the database credentials in AWS Secrets Manager for Ansible deployment.

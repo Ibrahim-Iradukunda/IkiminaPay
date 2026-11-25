@@ -37,5 +37,6 @@ open `http://<bastion-public-ip>`.
 The workflow in `.github/workflows/cd.yml` runs CI, builds and pushes an immutable image,
 temporarily allows SSH from the GitHub-hosted runner's current public IP, and runs this
 playbook through the bastion. It revokes that temporary SSH rule at the end of the job.
-Configure the required GitHub variables, secrets, and AWS OIDC role in the root
+Configure the required GitHub variables and secrets, including the dedicated IAM
+deployment user's access key, in the root
 [operations guide](../README.md#github-actions-deployment-setup).
