@@ -37,6 +37,14 @@ resource "aws_security_group" "bastion" {
     cidr_blocks = var.private_subnet_cidrs
   }
 
+  egress {
+    description = "HTTPS for Amazon Linux package downloads"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   tags = {
     Name        = "ikiminapay-bastion-sg"
     Environment = var.environment
