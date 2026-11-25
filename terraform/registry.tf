@@ -10,10 +10,6 @@ resource "aws_ecr_repository" "app" {
     scan_on_push = true
   }
 
-  encryption_configuration {
-    encryption_type = "AES256"
-  }
-
   tags = {
     Name        = "ikiminapay"
     Environment = var.environment

@@ -126,6 +126,12 @@ resource "aws_instance" "bastion" {
     encrypted = true
   }
 
+  # Avoid replacing a running host whenever the latest Amazon Linux AMI changes.
+  # Update the instance deliberately when a base-image refresh is required.
+  lifecycle {
+    ignore_changes = [ami]
+  }
+
   tags = {
     Name        = "ikiminapay-bastion"
     Environment = var.environment
@@ -155,6 +161,12 @@ resource "aws_instance" "app" {
 
   root_block_device {
     encrypted = true
+  }
+
+  # Avoid replacing a running host whenever the latest Amazon Linux AMI changes.
+  # Update the instance deliberately when a base-image refresh is required.
+  lifecycle {
+    ignore_changes = [ami]
   }
 
   tags = {
